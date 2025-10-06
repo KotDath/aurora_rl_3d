@@ -10,7 +10,7 @@ Page {
 
     PageHeader {
         objectName: "pageHeader"
-        title: qsTr("Application Template")
+        title: qsTr("AuroraRL3D")
         extraContent.children: [
             IconButton {
                 objectName: "aboutButton"
@@ -20,5 +20,29 @@ Page {
                 onClicked: pageStack.push(Qt.resolvedUrl("AboutPage.qml"))
             }
         ]
+    }
+
+    Column {
+        anchors.centerIn: parent
+        spacing: Theme.paddingLarge
+
+        Label {
+            text: qsTr("3D Rendering Demo")
+            font.pixelSize: Theme.fontSizeLarge
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
+
+        Button {
+            text: qsTr("Test 3D Render")
+            anchors.horizontalCenter: parent.horizontalCenter
+            onClicked: pageStack.push(Qt.resolvedUrl("TestPage.qml"))
+        }
+
+        Label {
+            text: qsTr("Qt 5.6 • OpenGL • QQuickFramebufferObject")
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.secondaryColor
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
     }
 }

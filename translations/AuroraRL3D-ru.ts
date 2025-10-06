@@ -4,23 +4,23 @@
 <context>
     <name>AboutPage</name>
     <message>
-        <location filename="../../qml/pages/AboutPage.qml" line="23"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AboutPage.qml" line="23"/>
         <source>About Application</source>
         <translation>О приложении</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/AboutPage.qml" line="33"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AboutPage.qml" line="33"/>
         <source>#descriptionText</source>
         <translation>&lt;p&gt;Проект предоставляет шаблон приложений для ОС&amp;nbsp;Аврора.&lt;/p&gt;
 &lt;p&gt;Основная цель&amp;nbsp;— наглядно продемонстрировать практически минимальный исходный код для получения корректного и расширяемого приложения.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/AboutPage.qml" line="38"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AboutPage.qml" line="38"/>
         <source>3-Clause BSD License</source>
         <translation>Лицензия 3-Clause BSD</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/AboutPage.qml" line="48"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AboutPage.qml" line="48"/>
         <source>#licenseText</source>
         <translation>&lt;p&gt;&lt;i&gt;Copyright (C) 2024 Open Mobile Platform LLC&lt;/i&gt;&lt;/p&gt;
 &lt;p&gt;Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:&lt;/p&gt;
@@ -35,7 +35,7 @@
 <context>
     <name>DefaultCoverPage</name>
     <message>
-        <location filename="../../qml/cover/DefaultCoverPage.qml" line="12"/>
+        <location filename="../../aurora_rl_3d/qml/cover/DefaultCoverPage.qml" line="12"/>
         <source>Application Template</source>
         <translation>Шаблон приложения</translation>
     </message>
@@ -43,9 +43,56 @@
 <context>
     <name>MainPage</name>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="13"/>
         <source>Application Template</source>
-        <translation>Шаблон приложения</translation>
+        <translation type="vanished">Шаблон приложения</translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/MainPage.qml" line="13"/>
+        <source>AuroraRL3D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/MainPage.qml" line="30"/>
+        <source>3D Rendering Demo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/MainPage.qml" line="36"/>
+        <source>Test 3D Render</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/MainPage.qml" line="42"/>
+        <source>Qt 5.6 • OpenGL • QQuickFramebufferObject</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TestPage</name>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="47"/>
+        <source>3D Render</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="61"/>
+        <source>Objects: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="87"/>
+        <source>Add Cube</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="101"/>
+        <source>Clear All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="110"/>
+        <source>Back to Main</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 </TS>

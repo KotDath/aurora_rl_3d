@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.18)
 project(ru.kotdath.AuroraRL3D CXX)
 
-find_package (Qt5 COMPONENTS Core Qml Gui Quick LinguistTools REQUIRED)
+find_package (Qt5 COMPONENTS Core Qml Gui Quick OpenGL LinguistTools REQUIRED)
 
 include(FindPkgConfig)
 pkg_search_module(AURORA auroraapp REQUIRED)
@@ -83,6 +83,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 >)
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt5::Quick
+    Qt5::OpenGL
+    Qt5::Gui
+    -lGLESv2
+    -lEGL
     ${AURORA_LDFLAGS}
 )
 
