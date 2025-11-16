@@ -11,13 +11,16 @@ BuildRequires:  pkgconfig(auroraapp)
 BuildRequires:  pkgconfig(Qt5Core)
 BuildRequires:  pkgconfig(Qt5Qml)
 BuildRequires:  pkgconfig(Qt5Quick)
-
+BuildRequires: cmake
+BuildRequires: ninja
+BuildRequires: conan
 %description
 Aurora OS Application Template.
 
 %prep
 %autosetup
 
+%build
 CONAN_LIB_DIR="%{_builddir}/conan-libs/"
 %{set_build_flags}
 conan-install-if-modified --source-folder="%{_sourcedir}/.." --output-folder="$CONAN_LIB_DIR" -vwarning

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.5)
 project(ru.kotdath.AuroraRL3D CXX)
 
 find_package (Qt5 COMPONENTS Core Qml Gui Quick OpenGL LinguistTools REQUIRED)
@@ -11,13 +11,8 @@ include(FindPkgConfig)
 pkg_search_module(AURORA auroraapp REQUIRED)
 pkg_search_module(AURORA auroraapp_i18n REQUIRED)
 
-pkg_check_modules(MLPACK REQUIRED IMPORTED_TARGET mlpack)
+pkg_check_modules(RLTOOLS REQUIRED IMPORTED_TARGET rltools)
 pkg_check_modules(OPENBLAS REQUIRED IMPORTED_TARGET openblas)
-pkg_check_modules(HDF5 REQUIRED IMPORTED_TARGET hdf5)
-pkg_check_modules(ARMADILLO REQUIRED IMPORTED_TARGET armadillo)
-pkg_check_modules(CEREAL REQUIRED IMPORTED_TARGET cereal)
-pkg_check_modules(ENSMALLEN REQUIRED IMPORTED_TARGET ensmallen)
-
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -87,6 +82,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PRIVATE
     $<BUILD_INTERFACE:
     ${AURORA_INCLUDE_DIRS}
+    ${RLTOOLS_INCLUDE_DIRS}
 >)
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt5::Quick
@@ -95,6 +91,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     -lGLESv2
     -lEGL
     ${AURORA_LDFLAGS}
+    PkgConfig::RLTOOLS
+    PkgConfig::OPENBLAS
 )
 
 install(TARGETS ${PROJECT_NAME}
