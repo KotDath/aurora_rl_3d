@@ -6,9 +6,11 @@
 
 #include <QtGui/QOpenGLContext>
 #include <QtGui/QOpenGLFunctions>
+#include <QtGlobal>
 #include <QDebug>
 #include <QVector>
 #include <QDateTime>
+#include <numeric>
 
 static const char* vertexShaderSource = R"(
 #version 100
@@ -66,8 +68,9 @@ void OpenGLRenderer::render()
     // Clamp delta time to avoid huge steps after pause
     if (deltaTime > 0.1) deltaTime = 0.1;
 
-    // Update simulation time
+    // Update simulation time and drive the internal game loop
     m_simTime += deltaTime;
+    m_gameLoop.update(deltaTime, m_simTime);
 
     QOpenGLFunctions* functions = QOpenGLContext::currentContext()->functions();
     functions->glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
@@ -80,35 +83,50 @@ void OpenGLRenderer::render()
     functions->glEnableVertexAttribArray(m_positionAttribute);
     functions->glEnableVertexAttribArray(m_colorAttribute);
 
-    // Set up vertex attributes
-    functions->glVertexAttribPointer(m_positionAttribute, 3, GL_FLOAT, GL_FALSE,
-                                     sizeof(Vertex), (void*)0);
-    functions->glVertexAttribPointer(m_colorAttribute, 4, GL_FLOAT, GL_FALSE,
-                                     sizeof(Vertex), (void*)offsetof(Vertex, color));
+    // Move camera back
+    QMatrix4x4 viewMatrix;
+    viewMatrix.translate(0.0f, 0.0f, -5.0f);
 
-    // Render each scene object
-    for (const SceneObject* obj : m_sceneObjects) {
-        if (!obj || !obj->visible() || obj->meshId() < 0 || obj->meshId() >= m_meshes.size()) {
-            continue;
+    auto drawInstance = [&](int meshId, const QMatrix4x4& modelMatrix) {
+        if (meshId < 0 || meshId >= m_meshes.size() || meshId >= m_meshOffsets.size()) {
+            return;
         }
 
-        const MeshData& mesh = m_meshes[obj->meshId()];
+        const MeshData& mesh = m_meshes[meshId];
+        const int vertexOffset = m_meshOffsets[meshId];
+        const quintptr baseOffset = quintptr(vertexOffset) * sizeof(Vertex);
 
-        // Apply object transformation
-        QMatrix4x4 objectMatrix = obj->transformMatrix();
+        functions->glVertexAttribPointer(m_positionAttribute, 3, GL_FLOAT, GL_FALSE,
+                                         sizeof(Vertex), reinterpret_cast<const void*>(baseOffset));
+        functions->glVertexAttribPointer(m_colorAttribute, 4, GL_FLOAT, GL_FALSE,
+                                         sizeof(Vertex), reinterpret_cast<const void*>(baseOffset + offsetof(Vertex, color)));
 
-        // Apply individual rotation for each object based on simulation time
-        objectMatrix.rotate(m_simTime * obj->rotationSpeed(), obj->rotationAxis());
-
-        // Move camera back
-        QMatrix4x4 viewMatrix;
-        viewMatrix.translate(0.0f, 0.0f, -5.0f);
-
-        QMatrix4x4 mvpMatrix = m_projectionMatrix * viewMatrix * objectMatrix;
-
+        QMatrix4x4 mvpMatrix = m_projectionMatrix * viewMatrix * modelMatrix;
         m_shaderProgram->setUniformValue(m_matrixUniform, mvpMatrix);
 
         functions->glDrawArrays(mesh.primitiveType(), 0, mesh.vertexCount());
+    };
+
+    // Render procedural actors controlled by the game loop
+    const QVector<GameLoop::RenderInstance>& instances = m_gameLoop.renderInstances();
+    for (const GameLoop::RenderInstance& instance : instances) {
+        if (!instance.visible) {
+            continue;
+        }
+
+        drawInstance(instance.meshId, instance.modelMatrix);
+    }
+
+    // Render user-provided scene objects (if any)
+    for (const SceneObject* obj : m_sceneObjects) {
+        if (!obj || !obj->visible()) {
+            continue;
+        }
+
+        QMatrix4x4 objectMatrix = obj->transformMatrix();
+        objectMatrix.rotate(m_simTime * obj->rotationSpeed(), obj->rotationAxis());
+
+        drawInstance(obj->meshId(), objectMatrix);
     }
 
     functions->glDisableVertexAttribArray(m_positionAttribute);
@@ -141,6 +159,15 @@ void OpenGLRenderer::synchronize(QQuickFramebufferObject* item)
         MeshData cyanCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 1.0f, 1.0f, 1.0f));
 
         m_meshes << redCube << greenCube << blueCube << yellowCube << purpleCube << cyanCube;
+
+        setupGeometry();
+
+        QVector<int> meshIds;
+        meshIds.reserve(m_meshes.size());
+        for (int i = 0; i < m_meshes.size(); ++i) {
+            meshIds.append(i);
+        }
+        m_gameLoop.setMeshIds(meshIds);
 
         // Create default objects if no objects in window
         if (window->sceneObjects().isEmpty()) {
@@ -243,7 +270,6 @@ void OpenGLRenderer::updateSceneObjects(const QVector<SceneObject*>& objects)
         }
     }
 
-    setupGeometry();
 }
 
 void OpenGLRenderer::addNewObjects(const QVector<SceneObject*>& objects)
@@ -301,13 +327,27 @@ void OpenGLRenderer::setupGeometry()
 
     m_vertexBuffer.bind();
 
-    // Собираем все вершины из всех мешей
+    // Собираем все вершины из всех мешей и считаем смещения
     QVector<Vertex> allVertices;
-    for (const MeshData& mesh : m_meshes) {
-        allVertices << mesh.vertices();
+    allVertices.reserve(std::accumulate(m_meshes.begin(), m_meshes.end(), 0, [](int sum, const MeshData& mesh) {
+        return sum + mesh.vertexCount();
+    }));
+
+    m_meshOffsets.resize(m_meshes.size());
+
+    int currentOffset = 0;
+    for (int i = 0; i < m_meshes.size(); ++i) {
+        m_meshOffsets[i] = currentOffset;
+        const QVector<Vertex>& vertices = m_meshes[i].vertices();
+        allVertices << vertices;
+        currentOffset += vertices.size();
     }
 
-    m_vertexBuffer.allocate(allVertices.constData(), allVertices.size() * sizeof(Vertex));
+    if (!allVertices.isEmpty()) {
+        m_vertexBuffer.allocate(allVertices.constData(), allVertices.size() * sizeof(Vertex));
+    } else {
+        m_vertexBuffer.allocate(nullptr, 0);
+    }
     m_vertexBuffer.release();
 }
 

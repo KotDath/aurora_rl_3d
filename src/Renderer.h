@@ -14,6 +14,7 @@
 
 #include "SceneObject.h"
 #include "MeshData.h"
+#include "GameLoop.h"
 
 class OpenGLRenderer : public QQuickFramebufferObject::Renderer
 {
@@ -46,6 +47,8 @@ private:
 
     QVector<SceneObject*> m_sceneObjects;
     QVector<MeshData> m_meshes;
+    QVector<int> m_meshOffsets;
+    GameLoop m_gameLoop;
     bool m_glInitialized;
     float m_rotationAngle;
 

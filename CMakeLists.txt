@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.18)
 project(ru.kotdath.AuroraRL3D CXX)
 
 find_package (Qt5 COMPONENTS Core Qml Gui Quick OpenGL LinguistTools REQUIRED)
