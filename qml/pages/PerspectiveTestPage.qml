@@ -7,12 +7,14 @@ import AuroraRL3D 1.0
 
 Page {
     objectName: "perspectiveTestPage"
-    allowedOrientations: Orientation.Landscape
+    allowedOrientations: Orientation.LandscapeMask
 
     RenderWindow {
         id: renderWindow
         anchors.fill: parent
         sceneProfile: RenderWindow.ScenePerspectiveTest
+        transformOrigin: Item.Center
+        rotation: 180
     }
 
     Rectangle {

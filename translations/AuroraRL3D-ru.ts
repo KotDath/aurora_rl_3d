@@ -35,42 +35,42 @@
 <context>
     <name>AntLearningPage</name>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="32"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="34"/>
         <source>Learning Ant agent</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="43"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="45"/>
         <source>Step: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="49"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="51"/>
         <source>Reward: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="56"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="58"/>
         <source>Avg: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="66"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="68"/>
         <source>Episode progress</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="71"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="73"/>
         <source>Fallback kinematics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="72"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="74"/>
         <source>MuJoCo PPO streaming</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="87"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="89"/>
         <source>Back</source>
         <translation type="unfinished"></translation>
     </message>
@@ -123,17 +123,17 @@
 <context>
     <name>PerspectiveTestPage</name>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="32"/>
+        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="34"/>
         <source>Perspective Lighting Test</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="41"/>
+        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="43"/>
         <source>Animated cubes, cylinders and UV spheres lit with the Bill-Phong shader</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="51"/>
+        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="53"/>
         <source>Back</source>
         <translation type="unfinished"></translation>
     </message>
@@ -141,37 +141,37 @@
 <context>
     <name>TestPage</name>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="50"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="52"/>
         <source>3D Game Loop Demo</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="73"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="75"/>
         <source>Objects: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="59"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="61"/>
         <source>Random Colors &amp; Rotation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="99"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="101"/>
         <source>Add Random Cube</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="117"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="119"/>
         <source>Game Loop Active</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="125"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="127"/>
         <source>Clear All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="134"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="136"/>
         <source>Back to Main</source>
         <translation type="unfinished"></translation>
     </message>

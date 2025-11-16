@@ -7,7 +7,7 @@ import AuroraRL3D 1.0
 
 Page {
     objectName: "testPage"
-    allowedOrientations: Orientation.Landscape
+    allowedOrientations: Orientation.LandscapeMask
 
     property int objectIndex: 0
 
@@ -15,6 +15,8 @@ Page {
     RenderWindow {
         id: renderWindow
         anchors.fill: parent
+        transformOrigin: Item.Center
+        rotation: 180
     }
 
     // Overlay с кнопками и информацией

@@ -7,12 +7,14 @@ import AuroraRL3D 1.0
 
 Page {
     objectName: "antLearningPage"
-    allowedOrientations: Orientation.Landscape
+    allowedOrientations: Orientation.LandscapeMask
 
     RenderWindow {
         id: trainingWindow
         anchors.fill: parent
         sceneProfile: RenderWindow.SceneAntTraining
+        transformOrigin: Item.Center
+        rotation: 180
     }
 
     Rectangle {

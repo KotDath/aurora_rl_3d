@@ -14,6 +14,7 @@
 #include <QSize>
 #include <QPointer>
 #include <QColor>
+#include <QHash>
 #include <memory>
 
 #include "SceneObject.h"
@@ -34,6 +35,7 @@ public:
     void render() override;
     void synchronize(QQuickFramebufferObject* item) override;
     QOpenGLFramebufferObject* createFramebufferObject(const QSize& size) override;
+    bool mirrorVertically() const { return true; }
 
 public slots:
     void updateSceneObjects(const QVector<SceneObject*>& objects);
@@ -52,6 +54,7 @@ private:
     void setupAntMeshes();
     void setupPerspectiveTestMeshes();
     void updatePerspectiveScene();
+    void cleanupShaderPrograms();
 
     struct PerspectiveObject
     {
@@ -63,7 +66,24 @@ private:
         float baseRotation = 0.0f;
     };
 
-    QOpenGLShaderProgram* m_shaderProgram;
+    struct ShaderProgramBinding
+    {
+        QOpenGLShaderProgram* program = nullptr;
+        int matrixUniform = -1;
+        int modelMatrixUniform = -1;
+        int normalMatrixUniform = -1;
+        int lightDirectionUniform = -1;
+        int lightColorUniform = -1;
+        int ambientColorUniform = -1;
+        int viewPositionUniform = -1;
+        int shininessUniform = -1;
+        int checkerScaleUniform = -1;
+        int checkerColorLightUniform = -1;
+        int checkerColorDarkUniform = -1;
+    };
+
+    QHash<MaterialType, ShaderProgramBinding> m_shaderPrograms;
+    QOpenGLShaderProgram* m_boundShaderProgram;
     QOpenGLBuffer m_vertexBuffer;
 
     QMatrix4x4 m_projectionMatrix;
@@ -84,16 +104,6 @@ private:
     qint64 m_lastTimeMs;
     double m_simTime;
 
-    int m_positionAttribute;
-    int m_colorAttribute;
-    int m_normalAttribute;
-    int m_matrixUniform;
-    int m_normalMatrixUniform;
-    int m_lightDirectionUniform;
-    int m_lightColorUniform;
-    int m_ambientColorUniform;
-    int m_viewPositionUniform;
-    int m_shininessUniform;
     SceneProfile m_activeProfile;
     QPointer<RenderWindow> m_windowItem;
     QColor m_clearColor;

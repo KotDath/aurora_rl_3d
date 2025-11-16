@@ -10,9 +10,10 @@ MeshData::MeshData()
 {
 }
 
-MeshData::MeshData(const QVector<Vertex>& vertices, GLenum primitiveType)
+MeshData::MeshData(const QVector<Vertex>& vertices, GLenum primitiveType, const MaterialSettings& material)
     : m_vertices(vertices)
     , m_primitiveType(primitiveType)
+    , m_material(material)
 {
 }
 

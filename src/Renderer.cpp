@@ -11,7 +11,19 @@
 #include <QDebug>
 #include <QVector>
 #include <QDateTime>
+#include <QVector2D>
 #include <numeric>
+
+namespace {
+constexpr int kPositionAttribute = 0;
+constexpr int kColorAttribute = 1;
+constexpr int kNormalAttribute = 2;
+}
+
+uint qHash(MaterialType key, uint seed = 0)
+{
+    return ::qHash(static_cast<int>(key), seed);
+}
 
 static const char* vertexShaderSource = R"(
 #version 100
@@ -20,6 +32,7 @@ attribute vec4 aColor;
 attribute vec3 aNormal;
 
 uniform mat4 uMatrix;
+uniform mat4 uModelMatrix;
 uniform mat3 uNormalMatrix;
 
 uniform vec3 uLightDirection;
@@ -40,7 +53,7 @@ void main()
     gl_Position = uMatrix * vec4(aPosition, 1.0);
     vColor = aColor;
     vNormal = normalize(uNormalMatrix * aNormal);
-    vWorldPosition = aPosition;
+    vWorldPosition = (uModelMatrix * vec4(aPosition, 1.0)).xyz;
     vLightDirection = uLightDirection;
     vLightColor = uLightColor;
     vAmbientColor = uAmbientColor;
@@ -88,22 +101,31 @@ void main()
 }
 )";
 
+static const char* checkerFragmentShaderSource = R"(
+#version 100
+precision mediump float;
+
+varying vec3 vWorldPosition;
+
+uniform vec2 uCheckerScale;
+uniform vec4 uCheckerColorLight;
+uniform vec4 uCheckerColorDark;
+
+void main()
+{
+    vec2 tiled = vWorldPosition.xz * uCheckerScale;
+    float pattern = mod(floor(tiled.x) + floor(tiled.y), 2.0);
+    vec4 color = mix(uCheckerColorLight, uCheckerColorDark, pattern);
+    gl_FragColor = color;
+}
+)";
+
 OpenGLRenderer::OpenGLRenderer()
-    : m_shaderProgram(nullptr)
+    : m_boundShaderProgram(nullptr)
     , m_glInitialized(false)
     , m_rotationAngle(0.0f)
     , m_lastTimeMs(0)
     , m_simTime(0.0)
-    , m_positionAttribute(-1)
-    , m_colorAttribute(-1)
-    , m_normalAttribute(-1)
-    , m_matrixUniform(-1)
-    , m_normalMatrixUniform(-1)
-    , m_lightDirectionUniform(-1)
-    , m_lightColorUniform(-1)
-    , m_ambientColorUniform(-1)
-    , m_viewPositionUniform(-1)
-    , m_shininessUniform(-1)
     , m_activeProfile(SceneProfile::Demo)
 {
     m_viewMatrix.setToIdentity();
@@ -154,12 +176,12 @@ void OpenGLRenderer::render()
     functions->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     functions->glEnable(GL_DEPTH_TEST);
 
-    m_shaderProgram->bind();
-    m_vertexBuffer.bind();
+    functions->glEnableVertexAttribArray(kPositionAttribute);
+    functions->glEnableVertexAttribArray(kColorAttribute);
+    functions->glEnableVertexAttribArray(kNormalAttribute);
 
-    functions->glEnableVertexAttribArray(m_positionAttribute);
-    functions->glEnableVertexAttribArray(m_colorAttribute);
-    functions->glEnableVertexAttribArray(m_normalAttribute);
+    m_vertexBuffer.bind();
+    m_boundShaderProgram = nullptr;
 
     QMatrix4x4 viewMatrix = m_viewMatrix;
     QMatrix4x4 inverseViewMatrix = viewMatrix.inverted();
@@ -169,7 +191,7 @@ void OpenGLRenderer::render()
         cameraForward = QVector3D(0.0f, 0.0f, -1.0f);
     }
     cameraForward.normalize();
-    QVector3D lightDirection = -cameraForward; // light shines the same way as the camera looks
+    QVector3D lightDirection = -cameraForward;
 
     auto drawInstance = [&](int meshId, const QMatrix4x4& modelMatrix) {
         if (meshId < 0 || meshId >= m_meshes.size() || meshId >= m_meshOffsets.size()) {
@@ -177,29 +199,63 @@ void OpenGLRenderer::render()
         }
 
         const MeshData& mesh = m_meshes[meshId];
+        auto shaderIt = m_shaderPrograms.find(mesh.materialType());
+        if (shaderIt == m_shaderPrograms.end() || !shaderIt->program) {
+            return;
+        }
+
+        ShaderProgramBinding& binding = shaderIt.value();
+        if (binding.program != m_boundShaderProgram) {
+            binding.program->bind();
+            m_boundShaderProgram = binding.program;
+        }
+
         const int vertexOffset = m_meshOffsets[meshId];
         const quintptr baseOffset = quintptr(vertexOffset) * sizeof(Vertex);
 
-        functions->glVertexAttribPointer(m_positionAttribute, 3, GL_FLOAT, GL_FALSE,
+        functions->glVertexAttribPointer(kPositionAttribute, 3, GL_FLOAT, GL_FALSE,
                                          sizeof(Vertex), reinterpret_cast<const void*>(baseOffset));
-        functions->glVertexAttribPointer(m_colorAttribute, 4, GL_FLOAT, GL_FALSE,
+        functions->glVertexAttribPointer(kColorAttribute, 4, GL_FLOAT, GL_FALSE,
                                          sizeof(Vertex), reinterpret_cast<const void*>(baseOffset + offsetof(Vertex, color)));
-        functions->glVertexAttribPointer(m_normalAttribute, 3, GL_FLOAT, GL_FALSE,
+        functions->glVertexAttribPointer(kNormalAttribute, 3, GL_FLOAT, GL_FALSE,
                                          sizeof(Vertex), reinterpret_cast<const void*>(baseOffset + offsetof(Vertex, normal)));
 
         QMatrix4x4 mvpMatrix = m_projectionMatrix * viewMatrix * modelMatrix;
-        m_shaderProgram->setUniformValue(m_matrixUniform, mvpMatrix);
+        if (binding.matrixUniform >= 0) {
+            binding.program->setUniformValue(binding.matrixUniform, mvpMatrix);
+        }
+        if (binding.modelMatrixUniform >= 0) {
+            binding.program->setUniformValue(binding.modelMatrixUniform, modelMatrix);
+        }
+        if (binding.normalMatrixUniform >= 0) {
+            binding.program->setUniformValue(binding.normalMatrixUniform, modelMatrix.normalMatrix());
+        }
+        if (binding.lightDirectionUniform >= 0) {
+            binding.program->setUniformValue(binding.lightDirectionUniform, lightDirection);
+        }
+        if (binding.lightColorUniform >= 0) {
+            binding.program->setUniformValue(binding.lightColorUniform, QVector3D(1.0f, 1.0f, 1.0f));
+        }
+        if (binding.ambientColorUniform >= 0) {
+            binding.program->setUniformValue(binding.ambientColorUniform, QVector3D(0.2f, 0.2f, 0.25f));
+        }
+        if (binding.viewPositionUniform >= 0) {
+            binding.program->setUniformValue(binding.viewPositionUniform, viewPosition);
+        }
+        if (binding.shininessUniform >= 0) {
+            binding.program->setUniformValue(binding.shininessUniform, 32.0f);
+        }
 
-        // Calculate normal matrix (inverse transpose of model matrix)
-        QMatrix3x3 normalMatrix = modelMatrix.normalMatrix();
-        m_shaderProgram->setUniformValue(m_normalMatrixUniform, normalMatrix);
-
-        // Set lighting parameters (these can be set once per frame, but here for simplicity)
-        m_shaderProgram->setUniformValue(m_lightDirectionUniform, lightDirection);
-        m_shaderProgram->setUniformValue(m_lightColorUniform, QVector3D(1.0f, 1.0f, 1.0f));
-        m_shaderProgram->setUniformValue(m_ambientColorUniform, QVector3D(0.2f, 0.2f, 0.25f));
-        m_shaderProgram->setUniformValue(m_viewPositionUniform, viewPosition);
-        m_shaderProgram->setUniformValue(m_shininessUniform, 32.0f);
+        const MaterialSettings& materialSettings = mesh.materialSettings();
+        if (binding.checkerScaleUniform >= 0) {
+            binding.program->setUniformValue(binding.checkerScaleUniform, materialSettings.tiling);
+        }
+        if (binding.checkerColorLightUniform >= 0) {
+            binding.program->setUniformValue(binding.checkerColorLightUniform, materialSettings.colorLight);
+        }
+        if (binding.checkerColorDarkUniform >= 0) {
+            binding.program->setUniformValue(binding.checkerColorDarkUniform, materialSettings.colorDark);
+        }
 
         functions->glDrawArrays(mesh.primitiveType(), 0, mesh.vertexCount());
     };
@@ -225,11 +281,16 @@ void OpenGLRenderer::render()
         drawInstance(obj->meshId(), objectMatrix);
     }
 
-    functions->glDisableVertexAttribArray(m_positionAttribute);
-    functions->glDisableVertexAttribArray(m_colorAttribute);
+    if (m_boundShaderProgram) {
+        m_boundShaderProgram->release();
+        m_boundShaderProgram = nullptr;
+    }
 
     m_vertexBuffer.release();
-    m_shaderProgram->release();
+
+    functions->glDisableVertexAttribArray(kPositionAttribute);
+    functions->glDisableVertexAttribArray(kColorAttribute);
+    functions->glDisableVertexAttribArray(kNormalAttribute);
 
     // Schedule next frame to continue the game loop
     update();
@@ -335,7 +396,14 @@ void OpenGLRenderer::setupDemoMeshes()
 void OpenGLRenderer::setupAntMeshes()
 {
     const int floorId = m_meshes.size();
-    m_meshes << MeshData::createPlane(20.0f, 20.0f, QVector4D(0.15f, 0.18f, 0.2f, 1.0f));
+    MeshData floorMesh = MeshData::createPlane(20.0f, 20.0f, QVector4D(0.15f, 0.18f, 0.2f, 1.0f));
+    MaterialSettings checkerMaterial;
+    checkerMaterial.type = MaterialType::Checkerboard;
+    checkerMaterial.colorLight = QVector4D(1.0f, 1.0f, 1.0f, 1.0f);
+    checkerMaterial.colorDark = QVector4D(0.05f, 0.05f, 0.05f, 1.0f);
+    checkerMaterial.tiling = QVector2D(2.0f, 2.0f);
+    floorMesh.setMaterialSettings(checkerMaterial);
+    m_meshes << floorMesh;
 
     const int torsoId = m_meshes.size();
     m_meshes << MeshUtils::createUVSphere(24, 32, AntSceneController::Dimensions::TorsoRadius,
@@ -381,7 +449,14 @@ void OpenGLRenderer::setupPerspectiveTestMeshes()
     };
 
     const int groundId = m_meshes.size();
-    m_meshes << MeshUtils::createPlane(28.0f, 28.0f, 1, 1, QVector4D(0.08f, 0.09f, 0.11f, 1.0f));
+    MeshData groundMesh = MeshUtils::createPlane(28.0f, 28.0f, 1, 1, QVector4D(0.08f, 0.09f, 0.11f, 1.0f));
+    MaterialSettings groundMaterial;
+    groundMaterial.type = MaterialType::Checkerboard;
+    groundMaterial.colorLight = QVector4D(0.95f, 0.95f, 0.95f, 1.0f);
+    groundMaterial.colorDark = QVector4D(0.05f, 0.05f, 0.05f, 1.0f);
+    groundMaterial.tiling = QVector2D(1.5f, 1.5f);
+    groundMesh.setMaterialSettings(groundMaterial);
+    m_meshes << groundMesh;
     appendPerspectiveObject(groundId, QVector3D(0.0f, -0.6f, 0.0f), QVector3D(1.0f, 1.0f, 1.0f),
                            QVector3D(0.0f, 1.0f, 0.0f), 0.0f, 0.0f);
 
@@ -448,6 +523,17 @@ void OpenGLRenderer::updatePerspectiveScene()
     }
 }
 
+void OpenGLRenderer::cleanupShaderPrograms()
+{
+    for (auto it = m_shaderPrograms.begin(); it != m_shaderPrograms.end(); ++it) {
+        if (it.value().program) {
+            delete it.value().program;
+            it.value().program = nullptr;
+        }
+    }
+    m_shaderPrograms.clear();
+}
+
 void OpenGLRenderer::initializeGL()
 {
     QOpenGLFunctions* functions = QOpenGLContext::currentContext()->functions();
@@ -470,10 +556,8 @@ void OpenGLRenderer::cleanupGL()
         m_vertexBuffer.destroy();
     }
 
-    if (m_shaderProgram) {
-        delete m_shaderProgram;
-        m_shaderProgram = nullptr;
-    }
+    cleanupShaderPrograms();
+    m_boundShaderProgram = nullptr;
 }
 
 void OpenGLRenderer::updateSceneObjects(const QVector<SceneObject*>& objects)
@@ -540,37 +624,54 @@ void OpenGLRenderer::addNewObjects(const QVector<SceneObject*>& objects)
 
 void OpenGLRenderer::setupShaders()
 {
-    if (m_shaderProgram) {
-        delete m_shaderProgram;
-    }
+    cleanupShaderPrograms();
 
-    m_shaderProgram = new QOpenGLShaderProgram();
+    auto createProgram = [&](MaterialType material, const char* fragmentSource) {
+        ShaderProgramBinding binding;
+        binding.program = new QOpenGLShaderProgram();
 
-    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShaderSource)) {
-        qWarning() << "Failed to compile vertex shader:" << m_shaderProgram->log();
-        return;
-    }
+        if (!binding.program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShaderSource)) {
+            qWarning() << "Failed to compile vertex shader:" << binding.program->log();
+            delete binding.program;
+            binding.program = nullptr;
+            return;
+        }
 
-    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentShaderSource)) {
-        qWarning() << "Failed to compile fragment shader:" << m_shaderProgram->log();
-        return;
-    }
+        if (!binding.program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentSource)) {
+            qWarning() << "Failed to compile fragment shader:" << binding.program->log();
+            delete binding.program;
+            binding.program = nullptr;
+            return;
+        }
 
-    if (!m_shaderProgram->link()) {
-        qWarning() << "Failed to link shader program:" << m_shaderProgram->log();
-        return;
-    }
+        binding.program->bindAttributeLocation("aPosition", kPositionAttribute);
+        binding.program->bindAttributeLocation("aColor", kColorAttribute);
+        binding.program->bindAttributeLocation("aNormal", kNormalAttribute);
 
-    m_positionAttribute = m_shaderProgram->attributeLocation("aPosition");
-    m_colorAttribute = m_shaderProgram->attributeLocation("aColor");
-    m_normalAttribute = m_shaderProgram->attributeLocation("aNormal");
-    m_matrixUniform = m_shaderProgram->uniformLocation("uMatrix");
-    m_normalMatrixUniform = m_shaderProgram->uniformLocation("uNormalMatrix");
-    m_lightDirectionUniform = m_shaderProgram->uniformLocation("uLightDirection");
-    m_lightColorUniform = m_shaderProgram->uniformLocation("uLightColor");
-    m_ambientColorUniform = m_shaderProgram->uniformLocation("uAmbientColor");
-    m_viewPositionUniform = m_shaderProgram->uniformLocation("uViewPosition");
-    m_shininessUniform = m_shaderProgram->uniformLocation("uShininess");
+        if (!binding.program->link()) {
+            qWarning() << "Failed to link shader program:" << binding.program->log();
+            delete binding.program;
+            binding.program = nullptr;
+            return;
+        }
+
+        binding.matrixUniform = binding.program->uniformLocation("uMatrix");
+        binding.modelMatrixUniform = binding.program->uniformLocation("uModelMatrix");
+        binding.normalMatrixUniform = binding.program->uniformLocation("uNormalMatrix");
+        binding.lightDirectionUniform = binding.program->uniformLocation("uLightDirection");
+        binding.lightColorUniform = binding.program->uniformLocation("uLightColor");
+        binding.ambientColorUniform = binding.program->uniformLocation("uAmbientColor");
+        binding.viewPositionUniform = binding.program->uniformLocation("uViewPosition");
+        binding.shininessUniform = binding.program->uniformLocation("uShininess");
+        binding.checkerScaleUniform = binding.program->uniformLocation("uCheckerScale");
+        binding.checkerColorLightUniform = binding.program->uniformLocation("uCheckerColorLight");
+        binding.checkerColorDarkUniform = binding.program->uniformLocation("uCheckerColorDark");
+
+        m_shaderPrograms.insert(material, binding);
+    };
+
+    createProgram(MaterialType::VertexColorPhong, fragmentShaderSource);
+    createProgram(MaterialType::Checkerboard, checkerFragmentShaderSource);
 }
 
 void OpenGLRenderer::setupGeometry()

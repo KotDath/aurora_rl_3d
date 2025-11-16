@@ -6,6 +6,7 @@
 
 #include <QVector3D>
 #include <QVector4D>
+#include <QVector2D>
 #include <QVector>
 #include <QtOpenGL/QGLFunctions>
 
@@ -20,11 +21,26 @@ struct Vertex
         : position(pos), color(col), normal(norm) {}
 };
 
+enum class MaterialType
+{
+    VertexColorPhong = 0,
+    Checkerboard
+};
+
+struct MaterialSettings
+{
+    MaterialType type = MaterialType::VertexColorPhong;
+    QVector4D colorLight = QVector4D(1.0f, 1.0f, 1.0f, 1.0f);
+    QVector4D colorDark = QVector4D(0.0f, 0.0f, 0.0f, 1.0f);
+    QVector2D tiling = QVector2D(1.0f, 1.0f);
+};
+
 class MeshData
 {
 public:
     MeshData();
-    MeshData(const QVector<Vertex>& vertices, GLenum primitiveType = GL_TRIANGLES);
+    MeshData(const QVector<Vertex>& vertices, GLenum primitiveType = GL_TRIANGLES,
+             const MaterialSettings& material = MaterialSettings());
 
     const QVector<Vertex>& vertices() const { return m_vertices; }
     void setVertices(const QVector<Vertex>& vertices) { m_vertices = vertices; }
@@ -33,6 +49,11 @@ public:
     void setPrimitiveType(GLenum type) { m_primitiveType = type; }
 
     int vertexCount() const { return m_vertices.size(); }
+
+    const MaterialSettings& materialSettings() const { return m_material; }
+    void setMaterialSettings(const MaterialSettings& settings) { m_material = settings; }
+    MaterialType materialType() const { return m_material.type; }
+    void setMaterialType(MaterialType type) { m_material.type = type; }
 
     static MeshData createTriangle(const QVector3D& p1, const QVector3D& p2, const QVector3D& p3,
                                   const QVector4D& color = QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
@@ -46,6 +67,7 @@ public:
 private:
     QVector<Vertex> m_vertices;
     GLenum m_primitiveType;
+    MaterialSettings m_material;
 };
 
 #endif // MESHDATA_H
