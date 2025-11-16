@@ -12,15 +12,34 @@ constexpr int kLegStartIndex = 2;
 constexpr int kLegSegmentsPerLeg = 2;
 constexpr int kTotalInstances = kLegStartIndex + kLegSegmentsPerLeg * 4;
 
-constexpr std::array<QVector3D, 4> kLegAnchors = {
-    QVector3D(0.32f, -0.05f, 0.28f),
-    QVector3D(0.32f, -0.05f, -0.28f),
-    QVector3D(-0.32f, -0.05f, 0.28f),
-    QVector3D(-0.32f, -0.05f, -0.28f)
+struct LegDescriptor
+{
+    QVector3D anchor;
+    QVector3D restDirection;
+    float sideSign;
 };
 
-constexpr std::array<float, 4> kLegDirections = { 1.0f, 1.0f, -1.0f, -1.0f };
-constexpr std::array<float, 4> kSideSigns = { 1.0f, -1.0f, 1.0f, -1.0f };
+constexpr std::array<LegDescriptor, 4> kLegDescriptors = {{
+    { QVector3D(0.32f, -0.05f, 0.28f), QVector3D(0.8f, -0.15f, 0.6f), 1.0f },   // front left
+    { QVector3D(0.32f, -0.05f, -0.28f), QVector3D(0.8f, -0.15f, -0.6f), -1.0f }, // front right
+    { QVector3D(-0.32f, -0.05f, 0.28f), QVector3D(-0.8f, -0.15f, 0.6f), 1.0f },  // back left
+    { QVector3D(-0.32f, -0.05f, -0.28f), QVector3D(-0.8f, -0.15f, -0.6f), -1.0f } // back right
+}};
+
+QMatrix4x4 buildSegmentMatrix(const QVector3D& start, const QVector3D& direction, float length)
+{
+    QVector3D dir = direction;
+    if (dir.lengthSquared() < 1e-6f) {
+        dir = QVector3D(0.0f, -1.0f, 0.0f);
+    }
+    dir.normalize();
+    QVector3D center = start + dir * (length * 0.5f);
+    QQuaternion rotation = QQuaternion::rotationTo(QVector3D(0.0f, 1.0f, 0.0f), dir);
+    QMatrix4x4 matrix;
+    matrix.translate(center);
+    matrix.rotate(rotation);
+    return matrix;
+}
 }
 
 AntSceneController::AntSceneController() = default;
@@ -80,7 +99,6 @@ void AntSceneController::updateFromPose(const AntTrainingEngine::PoseSnapshot& p
     QMatrix4x4 torsoMatrix;
     torsoMatrix.translate(pose.torsoPosition);
     torsoMatrix.rotate(pose.torsoRotation);
-    torsoMatrix.scale(0.7f, 0.2f, 0.45f);
     m_instances[kTorsoIndex].modelMatrix = torsoMatrix;
 
     for (int leg = 0; leg < 4; ++leg) {
@@ -94,28 +112,39 @@ void AntSceneController::updateLeg(int legIndex, float hipAngle, float kneeAngle
 {
     const int upperIndex = kLegStartIndex + legIndex * kLegSegmentsPerLeg;
     const int lowerIndex = upperIndex + 1;
+    const LegDescriptor& descriptor = kLegDescriptors[legIndex];
 
-    QMatrix4x4 base;
-    base.translate(pose.torsoPosition);
-    base.rotate(pose.torsoRotation);
-    base.translate(kLegAnchors[legIndex]);
+    const QVector3D hipAnchorWorld = pose.torsoPosition + pose.torsoRotation.rotatedVector(descriptor.anchor);
+    QVector3D hipAxisWorld = pose.torsoRotation.rotatedVector(QVector3D(0.0f, 1.0f, 0.0f));
+    if (hipAxisWorld.lengthSquared() < 1e-6f) {
+        hipAxisWorld = QVector3D(0.0f, 1.0f, 0.0f);
+    }
+    hipAxisWorld.normalize();
 
-    const float hipDeg = qRadiansToDegrees(hipAngle);
-    const float kneeDeg = qRadiansToDegrees(kneeAngle);
-    const float xDir = kLegDirections[legIndex];
-    const float side = kSideSigns[legIndex];
+    QVector3D restDirection = pose.torsoRotation.rotatedVector(descriptor.restDirection);
+    if (restDirection.lengthSquared() < 1e-6f) {
+        restDirection = QVector3D(descriptor.sideSign, -0.1f, descriptor.sideSign * 0.4f);
+    }
+    restDirection.normalize();
 
-    QMatrix4x4 upper = base;
-    upper.rotate(hipDeg, 0.0f, 1.0f, 0.0f);
-    upper.translate(xDir * 0.25f, 0.0f, 0.06f * side);
-    upper.scale(0.5f, 0.08f, 0.08f);
-    m_instances[upperIndex].modelMatrix = upper;
+    QQuaternion hipRotation = QQuaternion::fromAxisAndAngle(hipAxisWorld, qRadiansToDegrees(hipAngle));
+    QVector3D upperDirection = hipRotation.rotatedVector(restDirection).normalized();
+    m_instances[upperIndex].modelMatrix = buildSegmentMatrix(hipAnchorWorld, upperDirection, AntSceneController::Dimensions::UpperLegLength);
 
-    QMatrix4x4 lower = base;
-    lower.rotate(hipDeg, 0.0f, 1.0f, 0.0f);
-    lower.translate(xDir * 0.5f, -0.05f, 0.06f * side);
-    lower.rotate(kneeDeg, 0.0f, 0.0f, side);
-    lower.translate(xDir * 0.24f, -0.18f, 0.0f);
-    lower.scale(0.45f, 0.06f, 0.06f);
-    m_instances[lowerIndex].modelMatrix = lower;
+    const QVector3D kneePosition = hipAnchorWorld + upperDirection * AntSceneController::Dimensions::UpperLegLength;
+    QVector3D downward = pose.torsoRotation.rotatedVector(QVector3D(0.0f, -1.0f, 0.0f));
+    if (downward.lengthSquared() < 1e-6f) {
+        downward = QVector3D(0.0f, -1.0f, 0.0f);
+    }
+    downward.normalize();
+
+    QVector3D planeNormal = QVector3D::crossProduct(upperDirection, downward);
+    if (planeNormal.lengthSquared() < 1e-6f) {
+        planeNormal = pose.torsoRotation.rotatedVector(QVector3D(0.0f, 0.0f, descriptor.sideSign));
+    }
+    planeNormal.normalize();
+
+    QQuaternion kneeRotation = QQuaternion::fromAxisAndAngle(planeNormal, qRadiansToDegrees(kneeAngle));
+    QVector3D lowerDirection = kneeRotation.rotatedVector(downward).normalized();
+    m_instances[lowerIndex].modelMatrix = buildSegmentMatrix(kneePosition, lowerDirection, AntSceneController::Dimensions::LowerLegLength);
 }

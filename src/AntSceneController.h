@@ -21,6 +21,15 @@ public:
         int lowerLeg = -1;
     };
 
+    struct Dimensions
+    {
+        static constexpr float TorsoRadius = 0.32f;
+        static constexpr float UpperLegLength = 0.45f;
+        static constexpr float LowerLegLength = 0.55f;
+        static constexpr float UpperLegRadius = 0.09f;
+        static constexpr float LowerLegRadius = 0.07f;
+    };
+
     struct UpdateResult
     {
         bool metricsChanged = false;

@@ -44,6 +44,12 @@ Page {
             onClicked: pageStack.push(Qt.resolvedUrl("AntLearningPage.qml"))
         }
 
+        Button {
+            text: qsTr("Perspective Test")
+            anchors.horizontalCenter: parent.horizontalCenter
+            onClicked: pageStack.push(Qt.resolvedUrl("PerspectiveTestPage.qml"))
+        }
+
         Label {
             text: qsTr("Qt 5.6 • OpenGL • QQuickFramebufferObject")
             font.pixelSize: Theme.fontSizeSmall

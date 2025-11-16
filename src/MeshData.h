@@ -13,10 +13,11 @@ struct Vertex
 {
     QVector3D position;
     QVector4D color;
+    QVector3D normal;
 
     Vertex() {}
-    Vertex(const QVector3D& pos, const QVector4D& col)
-        : position(pos), color(col) {}
+    Vertex(const QVector3D& pos, const QVector4D& col, const QVector3D& norm = QVector3D(0.0f, 1.0f, 0.0f))
+        : position(pos), color(col), normal(norm) {}
 };
 
 class MeshData

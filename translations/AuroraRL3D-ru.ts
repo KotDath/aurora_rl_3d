@@ -111,7 +111,30 @@
     </message>
     <message>
         <location filename="../../aurora_rl_3d/qml/pages/MainPage.qml" line="48"/>
+        <source>Perspective Test</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/MainPage.qml" line="54"/>
         <source>Qt 5.6 • OpenGL • QQuickFramebufferObject</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>PerspectiveTestPage</name>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="32"/>
+        <source>Perspective Lighting Test</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="41"/>
+        <source>Animated cubes, cylinders and UV spheres lit with the Bill-Phong shader</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/PerspectiveTestPage.qml" line="51"/>
+        <source>Back</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

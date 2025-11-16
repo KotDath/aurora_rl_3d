@@ -9,6 +9,7 @@
 #include <QOpenGLBuffer>
 #include <QOpenGLFramebufferObject>
 #include <QMatrix4x4>
+#include <QVector3D>
 #include <QtOpenGL/QGLFunctions>
 #include <QSize>
 #include <QPointer>
@@ -49,6 +50,18 @@ private:
     void applyProfile(SceneProfile profile);
     void setupDemoMeshes();
     void setupAntMeshes();
+    void setupPerspectiveTestMeshes();
+    void updatePerspectiveScene();
+
+    struct PerspectiveObject
+    {
+        int meshId = -1;
+        QVector3D position;
+        QVector3D scale = QVector3D(1.0f, 1.0f, 1.0f);
+        QVector3D rotationAxis = QVector3D(0.0f, 1.0f, 0.0f);
+        float rotationSpeed = 0.0f;
+        float baseRotation = 0.0f;
+    };
 
     QOpenGLShaderProgram* m_shaderProgram;
     QOpenGLBuffer m_vertexBuffer;
@@ -60,6 +73,8 @@ private:
     QVector<SceneObject*> m_sceneObjects;
     QVector<MeshData> m_meshes;
     QVector<int> m_meshOffsets;
+    QVector<PerspectiveObject> m_perspectiveObjects;
+    QVector<SceneRenderInstance> m_perspectiveInstances;
     GameLoop m_gameLoop;
     std::unique_ptr<AntSceneController> m_antController;
     bool m_glInitialized;
@@ -71,7 +86,14 @@ private:
 
     int m_positionAttribute;
     int m_colorAttribute;
+    int m_normalAttribute;
     int m_matrixUniform;
+    int m_normalMatrixUniform;
+    int m_lightDirectionUniform;
+    int m_lightColorUniform;
+    int m_ambientColorUniform;
+    int m_viewPositionUniform;
+    int m_shininessUniform;
     SceneProfile m_activeProfile;
     QPointer<RenderWindow> m_windowItem;
     QColor m_clearColor;

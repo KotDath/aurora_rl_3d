@@ -28,7 +28,8 @@ public:
 
     enum SceneProfileValue {
         SceneDemo = static_cast<int>(SceneProfile::Demo),
-        SceneAntTraining = static_cast<int>(SceneProfile::AntTraining)
+        SceneAntTraining = static_cast<int>(SceneProfile::AntTraining),
+        ScenePerspectiveTest = static_cast<int>(SceneProfile::PerspectiveTest)
     };
     Q_ENUM(SceneProfileValue)
 

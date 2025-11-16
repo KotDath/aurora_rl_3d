@@ -19,7 +19,8 @@ struct AntTrainingMetrics
 enum class SceneProfile
 {
     Demo = 0,
-    AntTraining
+    AntTraining,
+    PerspectiveTest
 };
 
 Q_DECLARE_METATYPE(AntTrainingMetrics)
