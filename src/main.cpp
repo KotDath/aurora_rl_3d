@@ -6,6 +6,7 @@
 
 #include "RenderWindow.h"
 #include "SceneObject.h"
+#include "TrainingTypes.h"
 
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/containers/tensor/tensor.h>
@@ -17,6 +18,9 @@ namespace rlt = rl_tools;
 
 int main(int argc, char *argv[])
 {
+    qRegisterMetaType<SceneProfile>("SceneProfile");
+    qRegisterMetaType<AntTrainingMetrics>("AntTrainingMetrics");
+
     using DEVICE = rlt::devices::DefaultCPU;
     using Scalar = float;
     using Index = typename DEVICE::index_t;

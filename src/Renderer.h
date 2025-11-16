@@ -11,10 +11,18 @@
 #include <QMatrix4x4>
 #include <QtOpenGL/QGLFunctions>
 #include <QSize>
+#include <QPointer>
+#include <QColor>
+#include <memory>
 
 #include "SceneObject.h"
 #include "MeshData.h"
 #include "GameLoop.h"
+#include "SceneTypes.h"
+#include "AntSceneController.h"
+#include "TrainingTypes.h"
+
+class RenderWindow;
 
 class OpenGLRenderer : public QQuickFramebufferObject::Renderer
 {
@@ -38,17 +46,22 @@ private:
     void setupShaders();
     void setupGeometry();
     void updateProjectionMatrix(const QSize& size);
+    void applyProfile(SceneProfile profile);
+    void setupDemoMeshes();
+    void setupAntMeshes();
 
     QOpenGLShaderProgram* m_shaderProgram;
     QOpenGLBuffer m_vertexBuffer;
 
     QMatrix4x4 m_projectionMatrix;
+    QMatrix4x4 m_viewMatrix;
     QSize m_viewportSize;
 
     QVector<SceneObject*> m_sceneObjects;
     QVector<MeshData> m_meshes;
     QVector<int> m_meshOffsets;
     GameLoop m_gameLoop;
+    std::unique_ptr<AntSceneController> m_antController;
     bool m_glInitialized;
     float m_rotationAngle;
 
@@ -59,6 +72,9 @@ private:
     int m_positionAttribute;
     int m_colorAttribute;
     int m_matrixUniform;
+    SceneProfile m_activeProfile;
+    QPointer<RenderWindow> m_windowItem;
+    QColor m_clearColor;
 };
 
 #endif // RENDERER_H

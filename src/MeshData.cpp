@@ -137,3 +137,20 @@ MeshData MeshData::createColoredCube(float size, const QVector4D& baseColor)
 
     return MeshData(vertices, GL_TRIANGLES);
 }
+
+MeshData MeshData::createPlane(float width, float depth, const QVector4D& color)
+{
+    QVector<Vertex> vertices;
+    const float halfWidth = width * 0.5f;
+    const float halfDepth = depth * 0.5f;
+
+    const QVector3D p1(-halfWidth, 0.0f, -halfDepth);
+    const QVector3D p2(halfWidth, 0.0f, -halfDepth);
+    const QVector3D p3(halfWidth, 0.0f, halfDepth);
+    const QVector3D p4(-halfWidth, 0.0f, halfDepth);
+
+    vertices << Vertex(p1, color) << Vertex(p2, color) << Vertex(p3, color);
+    vertices << Vertex(p1, color) << Vertex(p3, color) << Vertex(p4, color);
+
+    return MeshData(vertices, GL_TRIANGLES);
+}

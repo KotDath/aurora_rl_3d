@@ -38,6 +38,12 @@ Page {
             onClicked: pageStack.push(Qt.resolvedUrl("TestPage.qml"))
         }
 
+        Button {
+            text: qsTr("Test 3D Render - Learning Ant agent")
+            anchors.horizontalCenter: parent.horizontalCenter
+            onClicked: pageStack.push(Qt.resolvedUrl("AntLearningPage.qml"))
+        }
+
         Label {
             text: qsTr("Qt 5.6 • OpenGL • QQuickFramebufferObject")
             font.pixelSize: Theme.fontSizeSmall

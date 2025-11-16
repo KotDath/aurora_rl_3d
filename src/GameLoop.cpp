@@ -14,14 +14,14 @@ class GameLoop::GameActor
 public:
     virtual ~GameActor() = default;
     virtual void update(double deltaTime, double simTime) = 0;
-    virtual RenderInstance instance() const = 0;
+    virtual SceneRenderInstance instance() const = 0;
 };
 
 namespace
 {
     constexpr float kDefaultScale = 0.8f;
 
-    using RenderInstance = GameLoop::RenderInstance;
+    using RenderInstance = SceneRenderInstance;
 
     RenderInstance makeInstance(int meshId)
     {

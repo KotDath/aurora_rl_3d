@@ -33,6 +33,49 @@
     </message>
 </context>
 <context>
+    <name>AntLearningPage</name>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="32"/>
+        <source>Learning Ant agent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="43"/>
+        <source>Step: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="49"/>
+        <source>Reward: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="56"/>
+        <source>Avg: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="66"/>
+        <source>Episode progress</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="71"/>
+        <source>Fallback kinematics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="72"/>
+        <source>MuJoCo PPO streaming</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="87"/>
+        <source>Back</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DefaultCoverPage</name>
     <message>
         <location filename="../../aurora_rl_3d/qml/cover/DefaultCoverPage.qml" line="12"/>
@@ -63,6 +106,11 @@
     </message>
     <message>
         <location filename="../../aurora_rl_3d/qml/pages/MainPage.qml" line="42"/>
+        <source>Test 3D Render - Learning Ant agent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/MainPage.qml" line="48"/>
         <source>Qt 5.6 • OpenGL • QQuickFramebufferObject</source>
         <translation type="unfinished"></translation>
     </message>

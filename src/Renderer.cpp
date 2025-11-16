@@ -46,7 +46,11 @@ OpenGLRenderer::OpenGLRenderer()
     , m_positionAttribute(-1)
     , m_colorAttribute(-1)
     , m_matrixUniform(-1)
+    , m_activeProfile(SceneProfile::Demo)
 {
+    m_viewMatrix.setToIdentity();
+    m_viewMatrix.translate(0.0f, 0.0f, -5.0f);
+    m_clearColor = QColor::fromRgbF(0.1f, 0.1f, 0.2f, 1.0f);
 }
 
 OpenGLRenderer::~OpenGLRenderer()
@@ -68,12 +72,24 @@ void OpenGLRenderer::render()
     // Clamp delta time to avoid huge steps after pause
     if (deltaTime > 0.1) deltaTime = 0.1;
 
-    // Update simulation time and drive the internal game loop
     m_simTime += deltaTime;
-    m_gameLoop.update(deltaTime, m_simTime);
+
+    const QVector<SceneRenderInstance>* simulatedInstances = nullptr;
+    if (m_activeProfile == SceneProfile::Demo) {
+        m_gameLoop.update(deltaTime, m_simTime);
+        simulatedInstances = &m_gameLoop.renderInstances();
+    } else if (m_activeProfile == SceneProfile::AntTraining && m_antController) {
+        AntSceneController::UpdateResult updateResult = m_antController->update();
+        simulatedInstances = &m_antController->instances();
+        if (updateResult.metricsChanged && m_windowItem) {
+            if (RenderWindow* window = m_windowItem.data()) {
+                window->publishAntMetrics(updateResult.metrics);
+            }
+        }
+    }
 
     QOpenGLFunctions* functions = QOpenGLContext::currentContext()->functions();
-    functions->glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
+    functions->glClearColor(m_clearColor.redF(), m_clearColor.greenF(), m_clearColor.blueF(), m_clearColor.alphaF());
     functions->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     functions->glEnable(GL_DEPTH_TEST);
 
@@ -83,9 +99,7 @@ void OpenGLRenderer::render()
     functions->glEnableVertexAttribArray(m_positionAttribute);
     functions->glEnableVertexAttribArray(m_colorAttribute);
 
-    // Move camera back
-    QMatrix4x4 viewMatrix;
-    viewMatrix.translate(0.0f, 0.0f, -5.0f);
+    QMatrix4x4 viewMatrix = m_viewMatrix;
 
     auto drawInstance = [&](int meshId, const QMatrix4x4& modelMatrix) {
         if (meshId < 0 || meshId >= m_meshes.size() || meshId >= m_meshOffsets.size()) {
@@ -107,14 +121,13 @@ void OpenGLRenderer::render()
         functions->glDrawArrays(mesh.primitiveType(), 0, mesh.vertexCount());
     };
 
-    // Render procedural actors controlled by the game loop
-    const QVector<GameLoop::RenderInstance>& instances = m_gameLoop.renderInstances();
-    for (const GameLoop::RenderInstance& instance : instances) {
-        if (!instance.visible) {
-            continue;
+    if (simulatedInstances) {
+        for (const SceneRenderInstance& instance : *simulatedInstances) {
+            if (!instance.visible) {
+                continue;
+            }
+            drawInstance(instance.meshId, instance.modelMatrix);
         }
-
-        drawInstance(instance.meshId, instance.modelMatrix);
     }
 
     // Render user-provided scene objects (if any)
@@ -146,41 +159,25 @@ void OpenGLRenderer::synchronize(QQuickFramebufferObject* item)
         return;
     }
 
-    // Initialize meshes if empty
-    if (m_meshes.isEmpty()) {
-        m_meshes.clear();
+    m_windowItem = window;
 
-        // Создаем кубы разных цветов
-        MeshData redCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 0.2f, 0.2f, 1.0f));
-        MeshData greenCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 1.0f, 0.2f, 1.0f));
-        MeshData blueCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 0.2f, 1.0f, 1.0f));
-        MeshData yellowCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 1.0f, 0.2f, 1.0f));
-        MeshData purpleCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 0.2f, 1.0f, 1.0f));
-        MeshData cyanCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 1.0f, 1.0f, 1.0f));
+    const SceneProfile requestedProfile = window->sceneProfile();
+    if (m_meshes.isEmpty() || m_activeProfile != requestedProfile) {
+        applyProfile(requestedProfile);
 
-        m_meshes << redCube << greenCube << blueCube << yellowCube << purpleCube << cyanCube;
+        if (m_activeProfile == SceneProfile::Demo && window->sceneObjects().isEmpty()) {
+            m_sceneObjects.clear();
 
-        setupGeometry();
-
-        QVector<int> meshIds;
-        meshIds.reserve(m_meshes.size());
-        for (int i = 0; i < m_meshes.size(); ++i) {
-            meshIds.append(i);
-        }
-        m_gameLoop.setMeshIds(meshIds);
-
-        // Create default objects if no objects in window
-        if (window->sceneObjects().isEmpty()) {
             SceneObject* obj1 = new SceneObject();
             obj1->setMeshId(0);
             obj1->setPosition(QVector3D(-0.3f, 0.0f, 0.0f));
-            obj1->setInitialRotation(45.0f); // Fixed rotation for first cube
+            obj1->setInitialRotation(45.0f);
             m_sceneObjects << obj1;
 
             SceneObject* obj2 = new SceneObject();
             obj2->setMeshId(0);
             obj2->setPosition(QVector3D(0.3f, 0.0f, 0.0f));
-            obj2->setInitialRotation(120.0f); // Different rotation for second cube
+            obj2->setInitialRotation(120.0f);
             m_sceneObjects << obj2;
         }
     }
@@ -199,6 +196,73 @@ QOpenGLFramebufferObject* OpenGLRenderer::createFramebufferObject(const QSize& s
     format.setSamples(4);
 
     return new QOpenGLFramebufferObject(size, format);
+}
+
+void OpenGLRenderer::applyProfile(SceneProfile profile)
+{
+    qDeleteAll(m_sceneObjects);
+    m_sceneObjects.clear();
+    m_meshes.clear();
+    m_meshOffsets.clear();
+    m_antController.reset();
+
+    m_activeProfile = profile;
+
+    if (profile == SceneProfile::Demo) {
+        setupDemoMeshes();
+        m_clearColor = QColor::fromRgbF(0.1f, 0.1f, 0.2f, 1.0f);
+        m_viewMatrix.setToIdentity();
+        m_viewMatrix.translate(0.0f, 0.0f, -5.0f);
+    } else {
+        setupAntMeshes();
+        m_clearColor = QColor::fromRgbF(0.02f, 0.03f, 0.05f, 1.0f);
+        m_viewMatrix.setToIdentity();
+        m_viewMatrix.lookAt(QVector3D(4.0f, 3.0f, 6.0f), QVector3D(0.0f, 0.3f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f));
+    }
+
+    setupGeometry();
+}
+
+void OpenGLRenderer::setupDemoMeshes()
+{
+    MeshData redCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 0.2f, 0.2f, 1.0f));
+    MeshData greenCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 1.0f, 0.2f, 1.0f));
+    MeshData blueCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 0.2f, 1.0f, 1.0f));
+    MeshData yellowCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 1.0f, 0.2f, 1.0f));
+    MeshData purpleCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 0.2f, 1.0f, 1.0f));
+    MeshData cyanCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 1.0f, 1.0f, 1.0f));
+
+    m_meshes << redCube << greenCube << blueCube << yellowCube << purpleCube << cyanCube;
+
+    QVector<int> meshIds;
+    meshIds.reserve(m_meshes.size());
+    for (int i = 0; i < m_meshes.size(); ++i) {
+        meshIds.append(i);
+    }
+    m_gameLoop.setMeshIds(meshIds);
+}
+
+void OpenGLRenderer::setupAntMeshes()
+{
+    const int floorId = m_meshes.size();
+    m_meshes << MeshData::createPlane(20.0f, 20.0f, QVector4D(0.15f, 0.18f, 0.2f, 1.0f));
+
+    const int torsoId = m_meshes.size();
+    m_meshes << MeshData::createColoredCube(0.9f, QVector4D(0.7f, 0.4f, 1.0f, 1.0f));
+
+    const int legUpperId = m_meshes.size();
+    m_meshes << MeshData::createColoredCube(0.5f, QVector4D(0.9f, 0.5f, 0.3f, 1.0f));
+
+    const int legLowerId = m_meshes.size();
+    m_meshes << MeshData::createColoredCube(0.4f, QVector4D(0.3f, 0.8f, 1.0f, 1.0f));
+
+    m_antController = std::make_unique<AntSceneController>();
+    AntSceneController::MeshSlots meshSlots;
+    meshSlots.floor = floorId;
+    meshSlots.torso = torsoId;
+    meshSlots.upperLeg = legUpperId;
+    meshSlots.lowerLeg = legLowerId;
+    m_antController->setMeshSlots(meshSlots);
 }
 
 void OpenGLRenderer::initializeGL()

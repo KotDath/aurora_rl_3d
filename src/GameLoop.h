@@ -10,16 +10,11 @@
 #include <memory>
 #include <vector>
 
+#include "SceneTypes.h"
+
 class GameLoop
 {
 public:
-    struct RenderInstance
-    {
-        int meshId = -1;
-        QMatrix4x4 modelMatrix;
-        bool visible = true;
-    };
-
     class GameActor;
 
     GameLoop();
@@ -28,7 +23,7 @@ public:
     void setMeshIds(const QVector<int>& meshIds);
     void update(double deltaTime, double simTime);
 
-    const QVector<RenderInstance>& renderInstances() const { return m_instances; }
+    const QVector<SceneRenderInstance>& renderInstances() const { return m_instances; }
 
 private:
     void ensureInitialized();
@@ -36,7 +31,7 @@ private:
 
     QVector<int> m_meshIds;
     std::vector<std::unique_ptr<GameActor>> m_actors;
-    QVector<RenderInstance> m_instances;
+    QVector<SceneRenderInstance> m_instances;
     bool m_initialized;
 };
 

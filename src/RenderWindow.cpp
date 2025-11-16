@@ -5,9 +5,11 @@
 #include "Renderer.h"
 
 #include <QDebug>
+#include <QMetaObject>
 
 RenderWindow::RenderWindow(QQuickItem* parent)
     : QQuickFramebufferObject(parent)
+    , m_sceneProfile(SceneProfile::Demo)
 {
     setFlag(QQuickItem::ItemHasContents, true);
 }
@@ -18,7 +20,7 @@ RenderWindow::~RenderWindow()
     m_objects.clear();
 }
 
-OpenGLRenderer* RenderWindow::createRenderer() const
+QQuickFramebufferObject::Renderer* RenderWindow::createRenderer() const
 {
     return new OpenGLRenderer();
 }
@@ -79,6 +81,16 @@ SceneObject* RenderWindow::getObject(int index) const
     return nullptr;
 }
 
+void RenderWindow::setSceneProfile(SceneProfile profile)
+{
+    if (m_sceneProfile == profile) {
+        return;
+    }
+    m_sceneProfile = profile;
+    emit sceneProfileChanged();
+    update();
+}
+
 void RenderWindow::appendObject(QQmlListProperty<SceneObject>* list, SceneObject* object)
 {
     RenderWindow* window = qobject_cast<RenderWindow*>(list->object);
@@ -118,3 +130,23 @@ const QVector<SceneObject*>& RenderWindow::sceneObjects() const
     return m_objects;
 }
 
+void RenderWindow::publishAntMetrics(const AntTrainingMetrics& metrics)
+{
+    m_pendingMetrics = metrics;
+    if (!m_metricsQueued) {
+        m_metricsQueued = true;
+        QMetaObject::invokeMethod(this, "flushAntMetrics", Qt::QueuedConnection);
+    }
+}
+
+void RenderWindow::flushAntMetrics()
+{
+    m_metricsQueued = false;
+    applyAntMetrics(m_pendingMetrics);
+}
+
+void RenderWindow::applyAntMetrics(const AntTrainingMetrics& metrics)
+{
+    m_antMetrics = metrics;
+    emit antMetricsChanged();
+}
