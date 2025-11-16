@@ -39,6 +39,7 @@ public:
                                           const QVector4D& color1, const QVector4D& color2, const QVector4D& color3);
 
     static MeshData createColoredCube(float size = 1.0f);
+    static MeshData createColoredCube(float size, const QVector4D& baseColor);
 
 private:
     QVector<Vertex> m_vertices;

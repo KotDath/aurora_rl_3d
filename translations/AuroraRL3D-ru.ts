@@ -70,27 +70,37 @@
 <context>
     <name>TestPage</name>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="47"/>
-        <source>3D Render</source>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="50"/>
+        <source>3D Game Loop Demo</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="61"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="73"/>
         <source>Objects: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="87"/>
-        <source>Add Cube</source>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="59"/>
+        <source>Random Colors &amp; Rotation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="101"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="99"/>
+        <source>Add Random Cube</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="117"/>
+        <source>Game Loop Active</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="125"/>
         <source>Clear All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="110"/>
+        <location filename="../../aurora_rl_3d/qml/pages/TestPage.qml" line="134"/>
         <source>Back to Main</source>
         <translation type="unfinished"></translation>
     </message>

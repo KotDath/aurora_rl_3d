@@ -38,18 +38,30 @@ Page {
             height: Theme.itemSizeLarge
             color: "transparent"
 
-            Label {
+            Column {
                 anchors {
                     left: parent.left
                     verticalCenter: parent.verticalCenter
                     margins: Theme.paddingMedium
                 }
-                text: qsTr("3D Render")
-                color: "white"
-                font.pixelSize: Theme.fontSizeLarge
-                font.bold: true
-                style: Text.Outline
-                styleColor: "black"
+                spacing: Theme.paddingSmall
+
+                Label {
+                    text: qsTr("3D Game Loop Demo")
+                    color: "white"
+                    font.pixelSize: Theme.fontSizeLarge
+                    font.bold: true
+                    style: Text.Outline
+                    styleColor: "black"
+                }
+
+                Label {
+                    text: qsTr("Random Colors & Rotation")
+                    color: "lightblue"
+                    font.pixelSize: Theme.fontSizeSmall
+                    style: Text.Outline
+                    styleColor: "black"
+                }
             }
 
             Label {
@@ -84,17 +96,29 @@ Page {
                 spacing: Theme.paddingSmall
 
                 Button {
-                    text: qsTr("Add Cube")
+                    text: qsTr("Add Random Cube")
                     anchors.horizontalCenter: parent.horizontalCenter
                     onClicked: {
-                        var newObject = Qt.createQmlObject('import AuroraRL3D 1.0; SceneObject {}', buttonPanel)
-                        newObject.position = Qt.vector3d(Math.random() * 3 - 1.5, Math.random() * 2 - 1, 0)
-                        newObject.initialRotation = Math.random() * 360
-                        newObject.meshId = 0
-                        newObject.visible = true
-                        renderWindow.addObject(newObject)
-                        objectIndex++
+                        for (var i = 0; i < 100; ++i) {
+                            var newObject = Qt.createQmlObject('import AuroraRL3D 1.0; SceneObject {}', buttonPanel)
+                            newObject.position = Qt.vector3d(Math.random() * 3 - 1.5, Math.random() * 2 - 1, 0)
+                            newObject.rotation = Qt.quaternion(Math.random(), Math.random(), Math.random(), Math.random())
+                            newObject.initialRotation = Math.random() * 360
+                            newObject.meshId = Math.floor(Math.random() * 6) // 0-5 для разных цветов
+                            newObject.visible = true
+                            renderWindow.addObject(newObject)
+                            objectIndex++
+                        }
                     }
+                }
+
+                Label {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("Game Loop Active")
+                    color: "lightgreen"
+                    font.pixelSize: Theme.fontSizeSmall
+                    style: Text.Outline
+                    styleColor: "black"
                 }
 
                 Button {

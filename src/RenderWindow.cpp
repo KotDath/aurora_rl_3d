@@ -117,3 +117,4 @@ const QVector<SceneObject*>& RenderWindow::sceneObjects() const
 {
     return m_objects;
 }
+

@@ -49,6 +49,10 @@ private:
     bool m_glInitialized;
     float m_rotationAngle;
 
+    // Game loop timing
+    qint64 m_lastTimeMs;
+    double m_simTime;
+
     int m_positionAttribute;
     int m_colorAttribute;
     int m_matrixUniform;

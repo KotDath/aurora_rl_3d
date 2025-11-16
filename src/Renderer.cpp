@@ -8,6 +8,7 @@
 #include <QtGui/QOpenGLFunctions>
 #include <QDebug>
 #include <QVector>
+#include <QDateTime>
 
 static const char* vertexShaderSource = R"(
 #version 100
@@ -38,6 +39,8 @@ OpenGLRenderer::OpenGLRenderer()
     : m_shaderProgram(nullptr)
     , m_glInitialized(false)
     , m_rotationAngle(0.0f)
+    , m_lastTimeMs(0)
+    , m_simTime(0.0)
     , m_positionAttribute(-1)
     , m_colorAttribute(-1)
     , m_matrixUniform(-1)
@@ -55,7 +58,16 @@ void OpenGLRenderer::render()
         initializeGL();
     }
 
-    // Static objects - no rotation animation
+    // Calculate delta time for game loop
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    double deltaTime = (m_lastTimeMs == 0) ? (1.0/60.0) : double(currentTime - m_lastTimeMs) / 1000.0;
+    m_lastTimeMs = currentTime;
+
+    // Clamp delta time to avoid huge steps after pause
+    if (deltaTime > 0.1) deltaTime = 0.1;
+
+    // Update simulation time
+    m_simTime += deltaTime;
 
     QOpenGLFunctions* functions = QOpenGLContext::currentContext()->functions();
     functions->glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
@@ -82,17 +94,17 @@ void OpenGLRenderer::render()
 
         const MeshData& mesh = m_meshes[obj->meshId()];
 
-        // Apply static rotation to the object (only initial rotation, no animation)
+        // Apply object transformation
         QMatrix4x4 objectMatrix = obj->transformMatrix();
-        QMatrix4x4 rotationMatrix;
-        rotationMatrix.rotate(obj->initialRotation(), 0.0f, 1.0f, 0.0f); // Rotate around Y axis
-        rotationMatrix.rotate(obj->initialRotation() * 0.7f, 1.0f, 0.0f, 0.0f); // Also rotate around X axis
+
+        // Apply individual rotation for each object based on simulation time
+        objectMatrix.rotate(m_simTime * obj->rotationSpeed(), obj->rotationAxis());
 
         // Move camera back
         QMatrix4x4 viewMatrix;
         viewMatrix.translate(0.0f, 0.0f, -5.0f);
 
-        QMatrix4x4 mvpMatrix = m_projectionMatrix * viewMatrix * objectMatrix * rotationMatrix;
+        QMatrix4x4 mvpMatrix = m_projectionMatrix * viewMatrix * objectMatrix;
 
         m_shaderProgram->setUniformValue(m_matrixUniform, mvpMatrix);
 
@@ -104,6 +116,9 @@ void OpenGLRenderer::render()
 
     m_vertexBuffer.release();
     m_shaderProgram->release();
+
+    // Schedule next frame to continue the game loop
+    update();
 }
 
 void OpenGLRenderer::synchronize(QQuickFramebufferObject* item)
@@ -117,9 +132,15 @@ void OpenGLRenderer::synchronize(QQuickFramebufferObject* item)
     if (m_meshes.isEmpty()) {
         m_meshes.clear();
 
-        // Создаем куб одинакового размера
-        MeshData cube = MeshData::createColoredCube(0.8f);
-        m_meshes << cube;
+        // Создаем кубы разных цветов
+        MeshData redCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 0.2f, 0.2f, 1.0f));
+        MeshData greenCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 1.0f, 0.2f, 1.0f));
+        MeshData blueCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 0.2f, 1.0f, 1.0f));
+        MeshData yellowCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 1.0f, 0.2f, 1.0f));
+        MeshData purpleCube = MeshData::createColoredCube(0.8f, QVector4D(1.0f, 0.2f, 1.0f, 1.0f));
+        MeshData cyanCube = MeshData::createColoredCube(0.8f, QVector4D(0.2f, 1.0f, 1.0f, 1.0f));
+
+        m_meshes << redCube << greenCube << blueCube << yellowCube << purpleCube << cyanCube;
 
         // Create default objects if no objects in window
         if (window->sceneObjects().isEmpty()) {
