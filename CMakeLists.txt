@@ -11,6 +11,13 @@ include(FindPkgConfig)
 pkg_search_module(AURORA auroraapp REQUIRED)
 pkg_search_module(AURORA auroraapp_i18n REQUIRED)
 
+pkg_check_modules(MLPACK REQUIRED IMPORTED_TARGET mlpack)
+pkg_check_modules(OPENBLAS REQUIRED IMPORTED_TARGET openblas)
+pkg_check_modules(HDF5 REQUIRED IMPORTED_TARGET hdf5)
+pkg_check_modules(ARMADILLO REQUIRED IMPORTED_TARGET armadillo)
+pkg_check_modules(CEREAL REQUIRED IMPORTED_TARGET cereal)
+pkg_check_modules(ENSMALLEN REQUIRED IMPORTED_TARGET ensmallen)
+
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
