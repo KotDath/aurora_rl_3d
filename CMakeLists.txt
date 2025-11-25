@@ -51,8 +51,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # Configure OpenBLAS for Qt compatibility (avoid threading conflicts)
-set(ENV{OPENBLAS_NUM_THREADS} "1")
-set(ENV{OMP_NUM_THREADS} "1")
+set(ENV{OPENBLAS_NUM_THREADS} "4")
+set(ENV{OMP_NUM_THREADS} "4")
 
 set(SHORT_NAME AuroraRL3D)
 

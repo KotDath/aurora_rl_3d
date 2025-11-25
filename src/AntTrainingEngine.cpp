@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 
 // RLtools
 #include <rl_tools/operations/cpu_mux.h>
@@ -206,6 +207,8 @@ void AntTrainingEngine::stepFallback(AntTrainingMetrics& metrics)
     metrics.reward = rewardSample;
     metrics.averageReward = m_averageReward;
     metrics.episodeProgress = static_cast<float>((m_iteration % 240)) / 240.0f;
+    metrics.health = 1.0f;
+    metrics.height = m_pose.torsoPosition.y();
     metrics.iteration = m_iteration;
     metrics.fallbackActive = true;
 
@@ -482,6 +485,25 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
     auto& render_state = rlt::get(runner.states, 0, render_env_index);
     const TI render_episode_step = rlt::get(runner.episode_step, 0, render_env_index);
     const bool render_truncated = rlt::get(runner.truncated, 0, render_env_index);
+    const float healthyMin = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MIN);
+    const float healthyMax = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MAX);
+    const float torsoZ = static_cast<float>(render_state.q[2]);
+    float healthScore = 0.0f;
+    constexpr float kLocalMinHealthyZ = 0.3f; // local guard until RLTools parameter is rebuilt
+    if (std::isfinite(torsoZ)) {
+        const float normalized = (torsoZ - healthyMin) / (healthyMax - healthyMin);
+        healthScore = qMin(1.0f, qMax(0.0f, normalized));
+    }
+    if (render_truncated || render_env.last_terminated) {
+        healthScore = 0.0f;
+    }
+    // Force truncate/reset if torso drops below tighter local threshold; covers case when linked RLTools still uses 0.2.
+    if (torsoZ < kLocalMinHealthyZ || !std::isfinite(torsoZ)) {
+        rlt::set(runner.truncated, 0, render_env_index, true);
+        render_env.last_terminated = true;
+        healthScore = 0.0f;
+        metrics.episodeProgress = 1.0f;
+    }
 
     const float rewardMean = rlt::mean(device, dataset.rewards);
     const float renderReward = static_cast<float>(render_env.last_reward);
@@ -495,7 +517,9 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
     if (render_truncated) {
         metrics.episodeProgress = 1.0f;
     }
-    metrics.iteration = static_cast<int>(ppo_step);
+    metrics.health = healthScore;
+    metrics.height = pose.torsoPosition.y();
+    metrics.iteration = static_cast<int>(render_episode_step);
     metrics.fallbackActive = false;
 
     stateToPose(render_state, pose);

@@ -55,22 +55,32 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="69"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="82"/>
         <source>Episode progress</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="74"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="87"/>
+        <source>Height: %1 m</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="107"/>
+        <source>Agent health</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="113"/>
         <source>Fallback kinematics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="75"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="114"/>
         <source>MuJoCo PPO streaming</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="92"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="131"/>
         <source>Back</source>
         <translation type="unfinished"></translation>
     </message>

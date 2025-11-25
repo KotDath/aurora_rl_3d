@@ -22,6 +22,8 @@ class RenderWindow : public QQuickFramebufferObject
     Q_PROPERTY(qreal antLastReward READ antLastReward NOTIFY antMetricsChanged)
     Q_PROPERTY(qreal antAverageReward READ antAverageReward NOTIFY antMetricsChanged)
     Q_PROPERTY(qreal antEpisodeProgress READ antEpisodeProgress NOTIFY antMetricsChanged)
+    Q_PROPERTY(qreal antHealth READ antHealth NOTIFY antMetricsChanged)
+    Q_PROPERTY(qreal antHeight READ antHeight NOTIFY antMetricsChanged)
     Q_PROPERTY(int antIteration READ antIteration NOTIFY antMetricsChanged)
     Q_PROPERTY(bool antFallbackActive READ antFallbackActive NOTIFY antMetricsChanged)
     Q_PROPERTY(qreal simpleLastReward READ simpleLastReward NOTIFY simpleMetricsChanged)
@@ -69,6 +71,8 @@ public:
     qreal antLastReward() const { return m_antMetrics.reward; }
     qreal antAverageReward() const { return m_antMetrics.averageReward; }
     qreal antEpisodeProgress() const { return m_antMetrics.episodeProgress; }
+    qreal antHealth() const { return m_antMetrics.health; }
+    qreal antHeight() const { return m_antMetrics.height; }
     int antIteration() const { return m_antMetrics.iteration; }
     bool antFallbackActive() const { return m_antMetrics.fallbackActive; }
 

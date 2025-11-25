@@ -12,6 +12,8 @@ struct AntTrainingMetrics
     qreal reward = 0.0;
     qreal averageReward = 0.0;
     qreal episodeProgress = 0.0;
+    qreal health = 1.0;
+    qreal height = 0.0;
     int iteration = 0;
     bool fallbackActive = false;
 };

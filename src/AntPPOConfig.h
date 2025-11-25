@@ -37,8 +37,9 @@ template <typename T, typename TI, typename ENVIRONMENT>
 struct RL
 {
     // Batch size must not exceed rollout samples (N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV).
-    // With 2 envs and 64 steps => 128 samples; temporarily reduce batch to fit.
-    static constexpr TI BATCH_SIZE = 128;
+    // For per-frame visualization we run 1 step per env => 2 samples; set batch to 2.
+    // For faster training revert to ON_POLICY_RUNNER_STEPS_PER_ENV=64 and BATCH_SIZE=512.
+    static constexpr TI BATCH_SIZE = 2;
 
     template <typename CAPABILITY>
     struct Actor
@@ -123,7 +124,9 @@ struct RL
         ENVIRONMENT,
         N_ENVIRONMENTS,
         ON_POLICY_RUNNER_STEP_LIMIT>;
-    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
+    // Debug-friendly: 1 step per call to see sequential step increments in UI for env0.
+    // Increase to 64 for efficient PPO training.
+    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 1;
     using ON_POLICY_RUNNER_DATASET_SPEC =
         rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;
     using ON_POLICY_RUNNER_DATASET_TYPE = rlt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;

@@ -63,10 +63,49 @@ Page {
                 }
             }
 
-            ProgressBar {
+            Row {
                 width: parent.width
-                value: trainingWindow.antEpisodeProgress
-                label: qsTr("Episode progress")
+                spacing: Theme.paddingMedium
+
+                Item {
+                    width: parent.width * 0.65
+                    height: progressEpisode.implicitHeight
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "#33000000"
+                        radius: Theme.paddingSmall
+                    }
+                    ProgressBar {
+                        id: progressEpisode
+                        anchors.fill: parent
+                        value: trainingWindow.antEpisodeProgress
+                        label: qsTr("Episode progress")
+                    }
+                }
+
+                Label {
+                    text: qsTr("Height: %1 m").arg(trainingWindow.antHeight.toFixed(2))
+                    color: "white"
+                    font.pixelSize: Theme.fontSizeMedium
+                    horizontalAlignment: Text.AlignRight
+                    width: parent.width * 0.35 - Theme.paddingMedium
+                }
+            }
+
+            Item {
+                width: parent.width
+                height: progressHealth.implicitHeight
+                Rectangle {
+                    anchors.fill: parent
+                    color: "#33000000"
+                    radius: Theme.paddingSmall
+                }
+                ProgressBar {
+                    id: progressHealth
+                    anchors.fill: parent
+                    value: trainingWindow.antHealth
+                    label: qsTr("Agent health")
+                }
             }
 
             Label {
