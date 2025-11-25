@@ -477,28 +477,37 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
 
     ++ppo_step;
 
-    const float rewardMean = rlt::mean(device, dataset.rewards);
-    smoothedReturn = 0.9f * smoothedReturn + 0.1f * rewardMean;
-
-    metrics.reward = rewardMean;
-    metrics.averageReward = smoothedReturn;
-    metrics.episodeProgress =
-        static_cast<float>(runner.step % prl::ON_POLICY_RUNNER_STEP_LIMIT) /
-        static_cast<float>(prl::ON_POLICY_RUNNER_STEP_LIMIT);
-    metrics.iteration = static_cast<int>(ppo_step);
-    metrics.fallbackActive = false;
-
     constexpr TI render_env_index = 0;
     auto& render_env = rlt::get(runner.environments, 0, render_env_index);
     auto& render_state = rlt::get(runner.states, 0, render_env_index);
+    const TI render_episode_step = rlt::get(runner.episode_step, 0, render_env_index);
+    const bool render_truncated = rlt::get(runner.truncated, 0, render_env_index);
+
+    const float rewardMean = rlt::mean(device, dataset.rewards);
+    const float renderReward = static_cast<float>(render_env.last_reward);
+    smoothedReturn = 0.9f * smoothedReturn + 0.1f * renderReward;
+
+    metrics.reward = renderReward;
+    metrics.averageReward = smoothedReturn;
+    metrics.episodeProgress =
+        qMin(1.0f, static_cast<float>(render_episode_step) /
+                       static_cast<float>(prl::ON_POLICY_RUNNER_STEP_LIMIT));
+    if (render_truncated) {
+        metrics.episodeProgress = 1.0f;
+    }
+    metrics.iteration = static_cast<int>(ppo_step);
+    metrics.fallbackActive = false;
+
     stateToPose(render_state, pose);
     fillSegmentPosesFromSimulation(render_env, pose);
 
     if (logThisStep) {
         qDebug() << "[Ant] MuJoCo trainStep done" << "ppo_step" << ppo_step
                  << "rewardMean" << rewardMean
+                 << "renderReward" << renderReward
                  << "smoothed" << smoothedReturn
                  << "progress" << metrics.episodeProgress
+                 << "episodeStep" << render_episode_step
                  << "t_ms" << timer.elapsed();
     }
 }

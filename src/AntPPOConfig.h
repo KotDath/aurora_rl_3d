@@ -36,7 +36,9 @@ struct Environment
 template <typename T, typename TI, typename ENVIRONMENT>
 struct RL
 {
-    static constexpr TI BATCH_SIZE = 512;
+    // Batch size must not exceed rollout samples (N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV).
+    // With 2 envs and 64 steps => 128 samples; temporarily reduce batch to fit.
+    static constexpr TI BATCH_SIZE = 128;
 
     template <typename CAPABILITY>
     struct Actor
@@ -113,7 +115,8 @@ struct RL
     using PPO_BUFFERS_TYPE = rlt::rl::algorithms::ppo::Buffers<rlt::rl::algorithms::ppo::BufferSpecification<PPO_SPEC>>;
 
     static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 1000;
-    static constexpr TI N_ENVIRONMENTS = 8;
+    // Recommended: 8 envs for faster, smoother PPO throughput; temporarily reduced to 2 to lighten load.
+    static constexpr TI N_ENVIRONMENTS = 2;
     using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<
         T,
         TI,
