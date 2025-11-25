@@ -10,6 +10,7 @@
 #include <QOpenGLFramebufferObject>
 #include <QMatrix4x4>
 #include <QVector3D>
+#include <QVector2D>
 #include <QtOpenGL/QGLFunctions>
 #include <QSize>
 #include <QPointer>
@@ -22,6 +23,7 @@
 #include "GameLoop.h"
 #include "SceneTypes.h"
 #include "AntSceneController.h"
+#include "SimpleSceneController.h"
 #include "TrainingTypes.h"
 
 class RenderWindow;
@@ -35,7 +37,6 @@ public:
     void render() override;
     void synchronize(QQuickFramebufferObject* item) override;
     QOpenGLFramebufferObject* createFramebufferObject(const QSize& size) override;
-    bool mirrorVertically() const { return true; }
 
 public slots:
     void updateSceneObjects(const QVector<SceneObject*>& objects);
@@ -52,9 +53,13 @@ private:
     void applyProfile(SceneProfile profile);
     void setupDemoMeshes();
     void setupAntMeshes();
+    void setupSimpleAgentMeshes();
     void setupPerspectiveTestMeshes();
     void updatePerspectiveScene();
+    void createGizmos();
+    void updateCameraFromInput(float deltaTime);
     void cleanupShaderPrograms();
+    void setCameraView(const QVector3D& position, const QVector3D& target);
 
     struct PerspectiveObject
     {
@@ -95,8 +100,16 @@ private:
     QVector<int> m_meshOffsets;
     QVector<PerspectiveObject> m_perspectiveObjects;
     QVector<SceneRenderInstance> m_perspectiveInstances;
+    QVector2D m_cameraInput;
+    QVector2D m_cameraLookDelta;
+    QVector3D m_cameraPosition;
+    QVector3D m_cameraTarget;
+    float m_cameraYaw;
+    float m_cameraPitch;
+    float m_cameraHeightDelta = 0.0f;
     GameLoop m_gameLoop;
     std::unique_ptr<AntSceneController> m_antController;
+    std::unique_ptr<SimpleSceneController> m_simpleController;
     bool m_glInitialized;
     float m_rotationAngle;
 

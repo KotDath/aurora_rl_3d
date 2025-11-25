@@ -135,8 +135,33 @@ Page {
                 Button {
                     text: qsTr("Back to Main")
                     anchors.horizontalCenter: parent.horizontalCenter
-                    onClicked: pageStack.pop()
+                    onClicked: pageStack.replace(Qt.resolvedUrl("MainPage.qml"))
                 }
+            }
+        }
+
+        Column {
+            id: verticalControls
+            anchors {
+                right: parent.right
+                verticalCenter: parent.verticalCenter
+                margins: Theme.paddingLarge
+            }
+            spacing: Theme.paddingMedium
+            z: 2
+
+            Button {
+                text: "\u2191"
+                width: Theme.itemSizeHuge
+                onPressed: upTimer.start(); onReleased: upTimer.stop()
+                Timer { id: upTimer; interval: 50; repeat: true; running: false; onTriggered: renderWindow.addCameraHeightDelta(0.05) }
+            }
+
+            Button {
+                text: "\u2193"
+                width: Theme.itemSizeHuge
+                onPressed: downTimer.start(); onReleased: downTimer.stop()
+                Timer { id: downTimer; interval: 50; repeat: true; running: false; onTriggered: renderWindow.addCameraHeightDelta(-0.05) }
             }
         }
     }

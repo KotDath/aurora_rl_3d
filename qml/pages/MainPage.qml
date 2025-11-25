@@ -17,7 +17,7 @@ Page {
                 icon.source: "image://theme/icon-m-about"
                 anchors.verticalCenter: parent.verticalCenter
 
-                onClicked: pageStack.push(Qt.resolvedUrl("AboutPage.qml"))
+                onClicked: pageStack.replace(Qt.resolvedUrl("AboutPage.qml"))
             }
         ]
     }
@@ -35,19 +35,25 @@ Page {
         Button {
             text: qsTr("Test 3D Render")
             anchors.horizontalCenter: parent.horizontalCenter
-            onClicked: pageStack.push(Qt.resolvedUrl("TestPage.qml"))
+            onClicked: pageStack.replace(Qt.resolvedUrl("TestPage.qml"))
         }
 
         Button {
             text: qsTr("Test 3D Render - Learning Ant agent")
             anchors.horizontalCenter: parent.horizontalCenter
-            onClicked: pageStack.push(Qt.resolvedUrl("AntLearningPage.qml"))
+            onClicked: pageStack.replace(Qt.resolvedUrl("AntLearningPage.qml"))
+        }
+
+        Button {
+            text: qsTr("Test 3D Render - Learning Simple agent")
+            anchors.horizontalCenter: parent.horizontalCenter
+            onClicked: pageStack.replace(Qt.resolvedUrl("SimpleLearningPage.qml"))
         }
 
         Button {
             text: qsTr("Perspective Test")
             anchors.horizontalCenter: parent.horizontalCenter
-            onClicked: pageStack.push(Qt.resolvedUrl("PerspectiveTestPage.qml"))
+            onClicked: pageStack.replace(Qt.resolvedUrl("PerspectiveTestPage.qml"))
         }
 
         Label {

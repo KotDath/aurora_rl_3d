@@ -3,8 +3,8 @@ Type=Application
 X-Nemo-Application-Type=silica-qt5
 Icon=ru.kotdath.AuroraRL3D
 Exec=/usr/bin/ru.kotdath.AuroraRL3D
-Name=Template
-Name[ru]=Шаблон
+Name=AuroraRL3D
+Name[ru]=AuroraRL3D
 
 [X-Application]
 Permissions=

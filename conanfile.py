@@ -5,5 +5,5 @@ class Application(ConanFile):
     generators = "PkgConfigDeps", "CMakeDeps"
 
     requires = (
-        "rltools/2.1.0@aurora",
+        "rltools/2.1.0@aurora"
     )

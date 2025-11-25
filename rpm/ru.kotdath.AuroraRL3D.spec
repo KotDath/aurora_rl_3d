@@ -39,7 +39,7 @@ conan-deploy-libraries "%{buildroot}/%{_bindir}/%{name}" "$CONAN_LIB_DIR" "$SHAR
 cp -rf %{_libdir}/libgomp* "$SHARED_LIBRARIES"
 
 %define __provides_exclude_from ^%{_datadir}/%{name}/lib/.*$
-%define __requires_exclude ^(libopenblas.*)$
+%define __requires_exclude ^(libopenblas.*|libQt5Quick.*|libmujoco.*)$
 
 %files
 %defattr(-,root,root,-)

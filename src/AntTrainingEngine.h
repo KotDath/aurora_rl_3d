@@ -8,31 +8,30 @@
 #include <memory>
 
 #include <QQuaternion>
+#include <QMatrix4x4>
+#include <QElapsedTimer>
 #include <QVector3D>
 
 #include "TrainingTypes.h"
 
-#ifndef AURORA_RL3D_HAS_MUJOCO
-#  if defined(__has_include)
-#    if __has_include(<mujoco/mujoco.h>)
-#      define AURORA_RL3D_HAS_MUJOCO 1
-#    else
-#      define AURORA_RL3D_HAS_MUJOCO 0
-#    endif
-#  else
-#    define AURORA_RL3D_HAS_MUJOCO 0
-#  endif
-#endif
+#define AURORA_RL3D_HAS_MUJOCO 1
 
 class AntTrainingEngine
 {
 public:
-    struct PoseSnapshot
-    {
-        QVector3D torsoPosition{0.0f, 0.6f, 0.0f};
-        QQuaternion torsoRotation;
-        std::array<float, 8> jointAngles{};
+struct PoseSnapshot
+{
+    struct SegmentPose {
+        QMatrix4x4 modelMatrix;
     };
+
+    QVector3D torsoPosition{0.0f, 0.6f, 0.0f};
+    QQuaternion torsoRotation;
+    std::array<float, 8> jointAngles{};
+    SegmentPose torsoPose;
+    std::array<SegmentPose, 4> upperLegPoses{};
+    std::array<SegmentPose, 4> lowerLegPoses{};
+};
 
     AntTrainingEngine();
     ~AntTrainingEngine();
@@ -42,17 +41,18 @@ public:
 
 private:
     void stepFallback(AntTrainingMetrics& metrics);
-#if AURORA_RL3D_HAS_MUJOCO
     void stepMuJoCo(AntTrainingMetrics& metrics);
     struct MuJoCoContext;
     std::unique_ptr<MuJoCoContext> m_mujoco;
-#endif
 
     PoseSnapshot m_pose;
     bool m_usingFallback;
     float m_timeAccumulator;
     float m_averageReward;
     int m_iteration;
+    QElapsedTimer m_stepTimer;
+    AntTrainingMetrics m_lastMetrics{};
+    bool m_hasLastMetrics{false};
 };
 
 #endif // ANTTRAININGENGINE_H

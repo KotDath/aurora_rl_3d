@@ -12,6 +12,8 @@
 #include <QVector>
 #include <QDateTime>
 #include <QVector2D>
+#include <QPointF>
+#include <QtMath>
 #include <numeric>
 
 namespace {
@@ -79,7 +81,7 @@ void main()
 {
     // Normalize inputs
     vec3 normal = normalize(vNormal);
-    vec3 lightDir = normalize(vLightDirection);
+    vec3 lightDir = normalize(-vLightDirection);
     vec3 viewDir = normalize(vViewPosition - vWorldPosition);
 
     // Ambient lighting
@@ -126,6 +128,12 @@ OpenGLRenderer::OpenGLRenderer()
     , m_rotationAngle(0.0f)
     , m_lastTimeMs(0)
     , m_simTime(0.0)
+    , m_cameraInput(0.0f, 0.0f)
+    , m_cameraLookDelta(0.0f, 0.0f)
+    , m_cameraPosition(6.0f, 4.0f, 8.0f)
+    , m_cameraTarget(0.0f, 0.6f, 0.0f)
+    , m_cameraYaw(0.0f)
+    , m_cameraPitch(0.0f)
     , m_activeProfile(SceneProfile::Demo)
 {
     m_viewMatrix.setToIdentity();
@@ -159,6 +167,7 @@ void OpenGLRenderer::render()
         m_gameLoop.update(deltaTime, m_simTime);
         simulatedInstances = &m_gameLoop.renderInstances();
     } else if (m_activeProfile == SceneProfile::AntTraining && m_antController) {
+        updateCameraFromInput(static_cast<float>(deltaTime));
         AntSceneController::UpdateResult updateResult = m_antController->update();
         simulatedInstances = &m_antController->instances();
         if (updateResult.metricsChanged && m_windowItem) {
@@ -166,7 +175,17 @@ void OpenGLRenderer::render()
                 window->publishAntMetrics(updateResult.metrics);
             }
         }
+    } else if (m_activeProfile == SceneProfile::SimpleTraining && m_simpleController) {
+        updateCameraFromInput(static_cast<float>(deltaTime));
+        SimpleSceneController::UpdateResult updateResult = m_simpleController->update();
+        simulatedInstances = &m_simpleController->instances();
+        if (updateResult.metricsChanged && m_windowItem) {
+            if (RenderWindow* window = m_windowItem.data()) {
+                window->publishSimpleMetrics(updateResult.metrics);
+            }
+        }
     } else if (m_activeProfile == SceneProfile::PerspectiveTest) {
+        updateCameraFromInput(static_cast<float>(deltaTime));
         updatePerspectiveScene();
         simulatedInstances = &m_perspectiveInstances;
     }
@@ -186,12 +205,8 @@ void OpenGLRenderer::render()
     QMatrix4x4 viewMatrix = m_viewMatrix;
     QMatrix4x4 inverseViewMatrix = viewMatrix.inverted();
     QVector3D viewPosition = inverseViewMatrix.column(3).toVector3D();
-    QVector3D cameraForward = inverseViewMatrix.mapVector(QVector3D(0.0f, 0.0f, -1.0f));
-    if (qFuzzyIsNull(cameraForward.lengthSquared())) {
-        cameraForward = QVector3D(0.0f, 0.0f, -1.0f);
-    }
-    cameraForward.normalize();
-    QVector3D lightDirection = -cameraForward;
+    QVector3D worldLightDirection(-2.0f, 1.0f, -4.0f);
+    worldLightDirection.normalize();
 
     auto drawInstance = [&](int meshId, const QMatrix4x4& modelMatrix) {
         if (meshId < 0 || meshId >= m_meshes.size() || meshId >= m_meshOffsets.size()) {
@@ -231,7 +246,7 @@ void OpenGLRenderer::render()
             binding.program->setUniformValue(binding.normalMatrixUniform, modelMatrix.normalMatrix());
         }
         if (binding.lightDirectionUniform >= 0) {
-            binding.program->setUniformValue(binding.lightDirectionUniform, lightDirection);
+            binding.program->setUniformValue(binding.lightDirectionUniform, worldLightDirection);
         }
         if (binding.lightColorUniform >= 0) {
             binding.program->setUniformValue(binding.lightColorUniform, QVector3D(1.0f, 1.0f, 1.0f));
@@ -328,6 +343,12 @@ void OpenGLRenderer::synchronize(QQuickFramebufferObject* item)
 
     // Update scene objects from window
     updateSceneObjects(window->sceneObjects());
+
+    QPointF cameraPoint = window->cameraInput();
+    m_cameraInput = QVector2D(cameraPoint.x(), cameraPoint.y());
+    QPointF lookDelta = window->takeCameraLookDelta();
+    m_cameraLookDelta = QVector2D(lookDelta.x(), lookDelta.y());
+    m_cameraHeightDelta = window->takeCameraHeightDelta();
 }
 
 QOpenGLFramebufferObject* OpenGLRenderer::createFramebufferObject(const QSize& size)
@@ -349,26 +370,37 @@ void OpenGLRenderer::applyProfile(SceneProfile profile)
     m_meshes.clear();
     m_meshOffsets.clear();
     m_antController.reset();
+    m_simpleController.reset();
     m_perspectiveObjects.clear();
     m_perspectiveInstances.clear();
 
     m_activeProfile = profile;
+    qInfo() << "[Renderer] Applying profile" << static_cast<int>(profile);
 
     if (profile == SceneProfile::Demo) {
         setupDemoMeshes();
         m_clearColor = QColor::fromRgbF(0.1f, 0.1f, 0.2f, 1.0f);
-        m_viewMatrix.setToIdentity();
-        m_viewMatrix.translate(0.0f, 0.0f, -5.0f);
+        m_cameraInput = QVector2D(0.0f, 0.0f);
+        m_cameraLookDelta = QVector2D(0.0f, 0.0f);
+        setCameraView(QVector3D(0.0f, 0.0f, -5.0f), QVector3D(0.0f, 0.0f, 0.0f));
     } else if (profile == SceneProfile::AntTraining) {
         setupAntMeshes();
         m_clearColor = QColor::fromRgbF(0.02f, 0.03f, 0.05f, 1.0f);
-        m_viewMatrix.setToIdentity();
-        m_viewMatrix.lookAt(QVector3D(2.5f, 2.0f, 3.5f), QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f));
+        m_cameraInput = QVector2D(0.0f, 0.0f);
+        m_cameraLookDelta = QVector2D(0.0f, 0.0f);
+        setCameraView(QVector3D(2.5f, 2.0f, 3.5f), QVector3D(0.0f, 0.0f, 0.0f));
+    } else if (profile == SceneProfile::SimpleTraining) {
+        setupSimpleAgentMeshes();
+        m_clearColor = QColor::fromRgbF(0.02f, 0.04f, 0.06f, 1.0f);
+        m_cameraInput = QVector2D(0.0f, 0.0f);
+        m_cameraLookDelta = QVector2D(0.0f, 0.0f);
+        setCameraView(QVector3D(2.0f, 1.4f, 3.2f), QVector3D(0.0f, 0.6f, 0.0f));
     } else if (profile == SceneProfile::PerspectiveTest) {
         setupPerspectiveTestMeshes();
         m_clearColor = QColor::fromRgbF(0.015f, 0.015f, 0.03f, 1.0f);
-        m_viewMatrix.setToIdentity();
-        m_viewMatrix.lookAt(QVector3D(6.0f, 4.0f, 8.0f), QVector3D(0.0f, 0.6f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f));
+        m_cameraInput = QVector2D(0.0f, 0.0f);
+        m_cameraLookDelta = QVector2D(0.0f, 0.0f);
+        setCameraView(QVector3D(6.0f, 4.0f, 8.0f), QVector3D(0.0f, 0.6f, 0.0f));
     }
 
     setupGeometry();
@@ -428,6 +460,41 @@ void OpenGLRenderer::setupAntMeshes()
     m_antController->setMeshSlots(meshSlots);
 }
 
+void OpenGLRenderer::setupSimpleAgentMeshes()
+{
+    const int floorId = m_meshes.size();
+    MeshData floorMesh = MeshData::createPlane(14.0f, 14.0f, QVector4D(0.1f, 0.12f, 0.14f, 1.0f));
+    MaterialSettings checkerMaterial;
+    checkerMaterial.type = MaterialType::Checkerboard;
+    checkerMaterial.colorLight = QVector4D(0.9f, 0.9f, 0.9f, 1.0f);
+    checkerMaterial.colorDark = QVector4D(0.1f, 0.1f, 0.1f, 1.0f);
+    checkerMaterial.tiling = QVector2D(1.5f, 1.5f);
+    floorMesh.setMaterialSettings(checkerMaterial);
+    m_meshes << floorMesh;
+
+    const int baseId = m_meshes.size();
+    m_meshes << MeshUtils::createUVSphere(20, 28, SimpleSceneController::Dimensions::BaseRadius,
+                                          QVector4D(0.35f, 0.7f, 1.0f, 1.0f));
+
+    const int poleId = m_meshes.size();
+    m_meshes << MeshUtils::createCylinder(24,
+                                          SimpleSceneController::Dimensions::PoleRadius,
+                                          SimpleSceneController::Dimensions::PoleLength,
+                                          QVector4D(1.0f, 0.6f, 0.25f, 1.0f));
+
+    const int tipId = m_meshes.size();
+    m_meshes << MeshUtils::createUVSphere(24, 32, SimpleSceneController::Dimensions::TipRadius,
+                                          QVector4D(0.95f, 0.65f, 0.2f, 1.0f));
+
+    m_simpleController = std::make_unique<SimpleSceneController>();
+    SimpleSceneController::MeshSlots meshSlots;
+    meshSlots.floor = floorId;
+    meshSlots.base = baseId;
+    meshSlots.pole = poleId;
+    meshSlots.tip = tipId;
+    m_simpleController->setMeshSlots(meshSlots);
+}
+
 void OpenGLRenderer::setupPerspectiveTestMeshes()
 {
     m_perspectiveObjects.clear();
@@ -457,7 +524,7 @@ void OpenGLRenderer::setupPerspectiveTestMeshes()
     groundMaterial.tiling = QVector2D(1.5f, 1.5f);
     groundMesh.setMaterialSettings(groundMaterial);
     m_meshes << groundMesh;
-    appendPerspectiveObject(groundId, QVector3D(0.0f, -0.6f, 0.0f), QVector3D(1.0f, 1.0f, 1.0f),
+    appendPerspectiveObject(groundId, QVector3D(0.0f, -2.0f, 0.0f), QVector3D(1.0f, 1.0f, 1.0f),
                            QVector3D(0.0f, 1.0f, 0.0f), 0.0f, 0.0f);
 
     const int cubeWarmId = m_meshes.size();
@@ -495,6 +562,8 @@ void OpenGLRenderer::setupPerspectiveTestMeshes()
     appendPerspectiveObject(cubeStackId, QVector3D(-4.5f, 0.3f, 1.0f), QVector3D(1.0f, 1.0f, 1.0f),
                            QVector3D(0.0f, 1.0f, 0.2f), 22.0f, -35.0f);
 
+    createGizmos();
+
     m_perspectiveInstances.resize(m_perspectiveObjects.size());
 }
 
@@ -521,6 +590,111 @@ void OpenGLRenderer::updatePerspectiveScene()
         model.scale(obj.scale);
         instance.modelMatrix = model;
     }
+}
+
+void OpenGLRenderer::updateCameraFromInput(float deltaTime)
+{
+    if (deltaTime <= 0.0f) {
+        deltaTime = 0.016f;
+    }
+
+    if (m_activeProfile != SceneProfile::PerspectiveTest && m_activeProfile != SceneProfile::AntTraining && m_activeProfile != SceneProfile::SimpleTraining) {
+        return;
+    }
+
+    const float moveSpeed = (m_activeProfile == SceneProfile::PerspectiveTest) ? 3.0f : 2.0f;
+    const QVector3D worldUp(0.0f, 1.0f, 0.0f);
+    const float lookSensitivity = 0.005f;
+
+    if (!qFuzzyIsNull(m_cameraLookDelta.x()) || !qFuzzyIsNull(m_cameraLookDelta.y())) {
+        m_cameraYaw += m_cameraLookDelta.x() * lookSensitivity;
+        m_cameraPitch = qBound<float>(-1.2f, m_cameraPitch + m_cameraLookDelta.y() * lookSensitivity, 1.2f);
+        m_cameraLookDelta = QVector2D(0.0f, 0.0f);
+    }
+
+    QVector3D forward(
+        qSin(m_cameraYaw) * qCos(m_cameraPitch),
+        qSin(m_cameraPitch),
+        -qCos(m_cameraYaw) * qCos(m_cameraPitch)
+    );
+    forward.normalize();
+    m_cameraTarget = m_cameraPosition + forward;
+
+    QVector3D planarForward = QVector3D(forward.x(), 0.0f, forward.z());
+    if (planarForward.lengthSquared() < 1e-6f) {
+        planarForward = QVector3D(0.0f, 0.0f, -1.0f);
+    } else {
+        planarForward.normalize();
+    }
+    QVector3D right = QVector3D::crossProduct(planarForward, worldUp);
+    if (right.lengthSquared() < 1e-6f) {
+        right = QVector3D(1.0f, 0.0f, 0.0f);
+    } else {
+        right.normalize();
+    }
+
+    QVector3D movement = (right * m_cameraInput.x() + planarForward * m_cameraInput.y()) * moveSpeed * deltaTime;
+    m_cameraPosition += movement;
+    m_cameraTarget += movement;
+
+    if (!qFuzzyIsNull(m_cameraHeightDelta)) {
+        QVector3D upDelta = worldUp * m_cameraHeightDelta;
+        m_cameraPosition += upDelta;
+        m_cameraTarget += upDelta;
+        m_cameraHeightDelta = 0.0f;
+    }
+
+    m_viewMatrix.setToIdentity();
+    m_viewMatrix.lookAt(m_cameraPosition, m_cameraTarget, worldUp);
+}
+
+void OpenGLRenderer::createGizmos()
+{
+    auto appendPerspectiveObject = [this](int meshId, const QVector3D& position, const QVector3D& scale,
+                                          const QVector3D& rotationAxis, float rotationSpeed, float baseRotation) {
+        PerspectiveObject obj;
+        obj.meshId = meshId;
+        obj.position = position;
+        obj.scale = scale;
+        QVector3D axis = rotationAxis;
+        if (qFuzzyIsNull(axis.lengthSquared())) {
+            axis = QVector3D(0.0f, 1.0f, 0.0f);
+        }
+        obj.rotationAxis = axis.normalized();
+        obj.rotationSpeed = rotationSpeed;
+        obj.baseRotation = baseRotation;
+        m_perspectiveObjects.append(obj);
+    };
+
+    const float axisLength = 2.5f;
+    const float axisRadius = 0.03f;
+
+    int xAxisId = m_meshes.size();
+    m_meshes << MeshUtils::createCylinder(16, axisRadius, axisLength, QVector4D(1.0f, 0.1f, 0.1f, 1.0f));
+    appendPerspectiveObject(xAxisId, QVector3D(axisLength * 0.5f, 0.0f, 0.0f), QVector3D(1.0f, 1.0f, 1.0f), QVector3D(0.0f, 0.0f, 1.0f), 0.0f, 90.0f);
+
+    int yAxisId = m_meshes.size();
+    m_meshes << MeshUtils::createCylinder(16, axisRadius, axisLength, QVector4D(0.2f, 1.0f, 0.2f, 1.0f));
+    appendPerspectiveObject(yAxisId, QVector3D(0.0f, axisLength * 0.5f, 0.0f), QVector3D(1.0f, 1.0f, 1.0f), QVector3D(0.0f, 0.0f, 1.0f), 0.0f, 0.0f);
+
+    int zAxisId = m_meshes.size();
+    m_meshes << MeshUtils::createCylinder(16, axisRadius, axisLength, QVector4D(0.2f, 0.4f, 1.0f, 1.0f));
+    appendPerspectiveObject(zAxisId, QVector3D(0.0f, 0.0f, axisLength * 0.5f), QVector3D(1.0f, 1.0f, 1.0f), QVector3D(1.0f, 0.0f, 0.0f), 0.0f, 90.0f);
+}
+
+void OpenGLRenderer::setCameraView(const QVector3D& position, const QVector3D& target)
+{
+    m_cameraPosition = position;
+    m_cameraTarget = target;
+    QVector3D direction = m_cameraTarget - m_cameraPosition;
+    if (direction.lengthSquared() < 1e-6f) {
+        direction = QVector3D(0.0f, 0.0f, -1.0f);
+    }
+    direction.normalize();
+    m_cameraYaw = qAtan2(direction.x(), -direction.z());
+    m_cameraPitch = qAsin(qBound<float>(-1.0f, direction.y(), 1.0f));
+    m_viewMatrix.setToIdentity();
+    m_viewMatrix.lookAt(m_cameraPosition, m_cameraTarget, QVector3D(0.0f, 1.0f, 0.0f));
 }
 
 void OpenGLRenderer::cleanupShaderPrograms()

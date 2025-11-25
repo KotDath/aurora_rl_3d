@@ -6,10 +6,12 @@
 
 #include <QDebug>
 #include <QMetaObject>
+#include <QtGlobal>
 
 RenderWindow::RenderWindow(QQuickItem* parent)
     : QQuickFramebufferObject(parent)
     , m_sceneProfile(SceneProfile::Demo)
+    , m_cameraInput(0.0, 0.0)
 {
     setFlag(QQuickItem::ItemHasContents, true);
 }
@@ -71,6 +73,47 @@ void RenderWindow::clearObjects()
 
     emit objectCountChanged();
     update();
+}
+
+void RenderWindow::setCameraInput(const QPointF& input)
+{
+    auto clamp = [](qreal v) {
+        return qMin<qreal>(1.0f, qMax<qreal>(-1.0f, v));
+    };
+    QPointF clamped(clamp(input.x()), clamp(input.y()));
+    if (m_cameraInput == clamped) {
+        return;
+    }
+    m_cameraInput = clamped;
+    emit cameraInputChanged();
+    update();
+}
+
+void RenderWindow::addCameraLookDelta(qreal deltaX, qreal deltaY)
+{
+    m_cameraLookDelta.rx() += deltaX;
+    m_cameraLookDelta.ry() += deltaY;
+    update();
+}
+
+void RenderWindow::addCameraHeightDelta(qreal delta)
+{
+    m_cameraHeightDelta += delta;
+    update();
+}
+
+QPointF RenderWindow::takeCameraLookDelta()
+{
+    QPointF delta = m_cameraLookDelta;
+    m_cameraLookDelta = QPointF(0.0, 0.0);
+    return delta;
+}
+
+qreal RenderWindow::takeCameraHeightDelta()
+{
+    qreal delta = m_cameraHeightDelta;
+    m_cameraHeightDelta = 0.0;
+    return delta;
 }
 
 SceneObject* RenderWindow::getObject(int index) const
@@ -149,4 +192,25 @@ void RenderWindow::applyAntMetrics(const AntTrainingMetrics& metrics)
 {
     m_antMetrics = metrics;
     emit antMetricsChanged();
+}
+
+void RenderWindow::publishSimpleMetrics(const SimpleTrainingMetrics& metrics)
+{
+    m_pendingSimpleMetrics = metrics;
+    if (!m_simpleMetricsQueued) {
+        m_simpleMetricsQueued = true;
+        QMetaObject::invokeMethod(this, "flushSimpleMetrics", Qt::QueuedConnection);
+    }
+}
+
+void RenderWindow::flushSimpleMetrics()
+{
+    m_simpleMetricsQueued = false;
+    applySimpleMetrics(m_pendingSimpleMetrics);
+}
+
+void RenderWindow::applySimpleMetrics(const SimpleTrainingMetrics& metrics)
+{
+    m_simpleMetrics = metrics;
+    emit simpleMetricsChanged();
 }

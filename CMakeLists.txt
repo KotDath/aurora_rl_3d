@@ -17,6 +17,43 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (default Release)" FORCE)
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
+
+option(AURORA_RL3D_ENABLE_FAST_MATH "Enable fast math flags for RL training builds" OFF)
+option(AURORA_RL3D_ENABLE_NATIVE_ARCH "Enable -march=native (disable for cross/PSDK builds)" OFF)
+option(AURORA_RL3D_ENABLE_ARM_OPTIMIZATIONS "Enable ARM-specific optimizations for Aurora OS" ON)
+
+set(AURORA_RL3D_RELEASE_FLAGS "")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    if(AURORA_RL3D_ENABLE_FAST_MATH)
+        list(APPEND AURORA_RL3D_RELEASE_FLAGS -Ofast -ffast-math)
+    else()
+        list(APPEND AURORA_RL3D_RELEASE_FLAGS -O3 -fno-fast-math -fno-finite-math-only)
+    endif()
+    if(AURORA_RL3D_ENABLE_NATIVE_ARCH)
+        list(APPEND AURORA_RL3D_RELEASE_FLAGS -march=native)
+    endif()
+
+    # ARM-specific optimizations for Aurora OS
+    if(AURORA_RL3D_ENABLE_ARM_OPTIMIZATIONS)
+#        if(CMAKE_SYSTEM_PROCESSOR MATCHES "armv7|arm")
+#            list(APPEND AURORA_RL3D_RELEASE_FLAGS -mfpu=neon -mfloat-abi=hard)
+#        endif()
+#        if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+#            list(APPEND AURORA_RL3D_RELEASE_FLAGS -mcpu=cortex-a76 -mtune=cortex-a76)
+#        endif()
+#        # Common ARM optimizations
+#        list(APPEND AURORA_RL3D_RELEASE_FLAGS -fno-strict-aliasing -funroll-loops)
+    endif()
+endif()
+
+# Configure OpenBLAS for Qt compatibility (avoid threading conflicts)
+set(ENV{OPENBLAS_NUM_THREADS} "1")
+set(ENV{OMP_NUM_THREADS} "1")
+
 set(SHORT_NAME AuroraRL3D)
 
 file(GLOB_RECURSE SOURCES_FILES CONFIGURE_DEPENDS "src/*.cpp")
@@ -78,8 +115,14 @@ add_executable(${PROJECT_NAME}
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
+    RL_TOOLS_BACKEND_ENABLE_OPENBLAS
+    RL_TOOLS_BACKEND_ENABLE_BLAS
+    RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO
+    # OpenBLAS threading configuration for Qt compatibility
+    OPENBLAS_NUM_THREADS=1
+    OMP_NUM_THREADS=1
 )
-target_include_directories(${PROJECT_NAME} PRIVATE
+target_include_directories(${PROJECT_NAME} BEFORE PRIVATE
     $<BUILD_INTERFACE:
     ${AURORA_INCLUDE_DIRS}
     ${RLTOOLS_INCLUDE_DIRS}
@@ -94,6 +137,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     PkgConfig::RLTOOLS
     PkgConfig::OPENBLAS
 )
+if(AURORA_RL3D_ENABLE_FAST_MATH AND AURORA_RL3D_RELEASE_FLAGS)
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:${AURORA_RL3D_RELEASE_FLAGS}>
+    )
+endif()
 
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

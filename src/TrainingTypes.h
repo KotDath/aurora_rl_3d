@@ -16,14 +16,26 @@ struct AntTrainingMetrics
     bool fallbackActive = false;
 };
 
+struct SimpleTrainingMetrics
+{
+    qreal reward = 0.0;
+    qreal averageReward = 0.0;
+    qreal episodeProgress = 0.0;
+    int iteration = 0;
+    qreal angle = 0.0;
+    qreal angularVelocity = 0.0;
+};
+
 enum class SceneProfile
 {
     Demo = 0,
     AntTraining,
+    SimpleTraining,
     PerspectiveTest
 };
 
 Q_DECLARE_METATYPE(AntTrainingMetrics)
+Q_DECLARE_METATYPE(SimpleTrainingMetrics)
 Q_DECLARE_METATYPE(SceneProfile)
 
 #endif // TRAININGTYPES_H

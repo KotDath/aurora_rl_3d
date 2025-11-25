@@ -23,11 +23,12 @@ public:
 
     struct Dimensions
     {
-        static constexpr float TorsoRadius = 0.32f;
-        static constexpr float UpperLegLength = 0.45f;
-        static constexpr float LowerLegLength = 0.55f;
-        static constexpr float UpperLegRadius = 0.09f;
-        static constexpr float LowerLegRadius = 0.07f;
+        // Match MuJoCo ant.xml: torso sphere size 0.25, hip-to-knee ~0.28, knee-to-ankle ~0.20, capsule radius ~0.08
+        static constexpr float TorsoRadius = 0.25f;
+        static constexpr float UpperLegLength = 0.2828427124f; // sqrt(0.2^2 + 0.2^2)
+        static constexpr float LowerLegLength = 0.5656854249f; // sqrt(0.4^2 + 0.4^2)
+        static constexpr float UpperLegRadius = 0.08f;
+        static constexpr float LowerLegRadius = 0.08f;
     };
 
     struct UpdateResult
@@ -45,7 +46,6 @@ public:
 private:
     void ensureInstances();
     void updateFromPose(const AntTrainingEngine::PoseSnapshot& pose);
-    void updateLeg(int legIndex, float hipAngle, float kneeAngle, const AntTrainingEngine::PoseSnapshot& pose);
 
     MeshSlots m_slots;
     QVector<SceneRenderInstance> m_instances;

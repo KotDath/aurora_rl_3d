@@ -7,13 +7,13 @@ import AuroraRL3D 1.0
 import "../components"
 
 Page {
-    objectName: "antLearningPage"
+    objectName: "simpleLearningPage"
     allowedOrientations: Orientation.LandscapeMask
 
     RenderWindow {
         id: trainingWindow
         anchors.fill: parent
-        sceneProfile: RenderWindow.SceneAntTraining
+        sceneProfile: RenderWindow.SceneSimpleTraining
         transformOrigin: Item.Center
         rotation: 180
     }
@@ -32,7 +32,7 @@ Page {
             spacing: Theme.paddingMedium
 
             Label {
-                text: qsTr("Learning Ant agent")
+                text: qsTr("Learning simple agent (pendulum)")
                 font.pixelSize: Theme.fontSizeLarge
                 color: "white"
                 style: Text.Outline
@@ -43,38 +43,50 @@ Page {
                 spacing: Theme.paddingLarge
 
                 Label {
-                    text: qsTr("Step: %1").arg(trainingWindow.antIteration)
+                    text: qsTr("Step: %1").arg(trainingWindow.simpleIteration)
                     color: "white"
                     font.pixelSize: Theme.fontSizeMedium
                 }
 
                 Label {
-                    text: qsTr("Reward: %1")
-                            .arg(trainingWindow.antLastReward.toFixed(1))
+                    text: qsTr("Reward: %1").arg(trainingWindow.simpleLastReward.toFixed(3))
                     color: "lightgreen"
                     font.pixelSize: Theme.fontSizeMedium
                 }
 
                 Label {
-                    text: qsTr("Avg: %1")
-                            .arg(trainingWindow.antAverageReward.toFixed(1))
+                    text: qsTr("Avg: %1").arg(trainingWindow.simpleAverageReward.toFixed(3))
                     color: "#88d7ff"
                     font.pixelSize: Theme.fontSizeMedium
                 }
             }
 
+            Row {
+                spacing: Theme.paddingLarge
+
+                Label {
+                    text: qsTr("Angle: %1°").arg(Math.round(trainingWindow.simpleAngle * 180 / Math.PI))
+                    color: "white"
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+
+                Label {
+                    text: qsTr("Angular vel: %1").arg(trainingWindow.simpleAngularVelocity.toFixed(2))
+                    color: "white"
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+            }
+
             ProgressBar {
                 width: parent.width
-                value: trainingWindow.antEpisodeProgress
+                value: trainingWindow.simpleEpisodeProgress
                 label: qsTr("Episode progress")
             }
 
             Label {
-                text: trainingWindow.antFallbackActive ?
-                          qsTr("Fallback kinematics") :
-                          qsTr("MuJoCo PPO streaming")
+                text: qsTr("RL Tools pendulum, PD control for fast render")
                 font.pixelSize: Theme.fontSizeSmall
-                color: trainingWindow.antFallbackActive ? "#ffca28" : "#8bc34a"
+                color: "#cddc39"
             }
         }
 
@@ -96,7 +108,7 @@ Page {
         }
 
         VirtualJoystick {
-            id: antJoystick
+            id: simpleJoystick
             anchors {
                 left: parent.left
                 bottom: parent.bottom
