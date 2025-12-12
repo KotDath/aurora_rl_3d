@@ -259,6 +259,10 @@ struct AntTrainingEngine::MuJoCoContext
     penv::ENVIRONMENT render_env;
     penv::ENVIRONMENT::Parameters render_env_parameters{};
     RNG render_rng;
+    bool eval_in_progress = false;
+    TI eval_steps = 0;
+    double eval_return = 0.0;
+    static constexpr TI EVAL_INTERVAL = 50;
 
     int torso_geom_id{-1};
     int upper_geom_ids[4]{-1, -1, -1, -1};
@@ -468,6 +472,63 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
         qDebug() << "[Ant] MuJoCo trainStep start" << "ppo_step" << ppo_step;
     }
 
+    if (eval_in_progress) {
+        // Drive render runner as evaluation episode; no training until it finishes.
+        rlt::collect(device, render_dataset, render_runner, ppo.actor, render_actor_eval_buffers, render_rng);
+        constexpr TI render_env_index = 0;
+        auto& render_env_eval = rlt::get(render_runner.environments, 0, render_env_index);
+        auto& render_state_eval = rlt::get(render_runner.states, 0, render_env_index);
+        const TI render_episode_step_eval = rlt::get(render_runner.episode_step, 0, render_env_index);
+        const bool render_truncated_eval = rlt::get(render_runner.truncated, 0, render_env_index);
+
+        const float healthyMinEval = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MIN);
+        const float healthyMaxEval = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MAX);
+        const float torsoZEval = static_cast<float>(render_state_eval.q[2]);
+        float healthScoreEval = 0.0f;
+        if (std::isfinite(torsoZEval)) {
+            const float normalized = (torsoZEval - healthyMinEval) / (healthyMaxEval - healthyMinEval);
+            healthScoreEval = qMin(1.0f, qMax(0.0f, normalized));
+        }
+        if (render_truncated_eval || render_env_eval.last_terminated) {
+            healthScoreEval = 0.0f;
+        }
+
+        const float renderRewardEval = static_cast<float>(render_env_eval.last_reward);
+        eval_return += renderRewardEval;
+        ++eval_steps;
+
+        metrics.reward = renderRewardEval;
+        metrics.averageReward = smoothedReturn;
+        metrics.episodeProgress =
+            qMin(1.0f, static_cast<float>(render_episode_step_eval) /
+                           static_cast<float>(prl::ON_POLICY_RUNNER_STEP_LIMIT));
+        if (render_truncated_eval) {
+            metrics.episodeProgress = 1.0f;
+        }
+        metrics.health = healthScoreEval;
+        metrics.height = pose.torsoPosition.y();
+        metrics.iteration = static_cast<int>(render_episode_step_eval);
+        metrics.fallbackActive = false;
+
+        stateToPose(render_state_eval, pose);
+        fillSegmentPosesFromSimulation(render_env_eval, pose);
+
+        const bool eval_done = render_truncated_eval || render_env_eval.last_terminated ||
+                               eval_steps >= prl::ON_POLICY_RUNNER_STEP_LIMIT;
+        if (eval_done) {
+            qInfo() << "[Ant] eval episode done"
+                    << "return" << eval_return
+                    << "length" << eval_steps
+                    << "ppo_step" << ppo_step;
+            eval_in_progress = false;
+            eval_steps = 0;
+            eval_return = 0.0;
+            // Reset render runner so next training render starts clean.
+            rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
+        }
+        return;
+    }
+
     rlt::collect(device, dataset, runner, ppo.actor, actor_eval_buffers, rng);
     if (logThisStep) {
         qDebug() << "[Ant] collect done" << "t_ms" << stepTimer.elapsed();
@@ -518,7 +579,13 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
 
     ++ppo_step;
 
-    // Step decoupled render env (does not affect training).
+    // Step decoupled render env; reset only when episode ends.
+    const bool render_needs_reset =
+        rlt::get(render_runner.truncated, 0, 0) ||
+        rlt::get(render_runner.environments, 0, 0).last_terminated;
+    if (render_needs_reset) {
+        rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
+    }
     rlt::collect(device, render_dataset, render_runner, ppo.actor, render_actor_eval_buffers, render_rng);
 
     constexpr TI render_env_index = 0;
@@ -576,20 +643,12 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
                 << "episodeStep" << render_episode_step
                 << "elapsed_ms" << stepTimer.elapsed();
     }
-    // Periodic headless evaluation (similar to memory/ant_example).
-    if ((ppo_step % 50) == 0) {
-        using EvalSpec = rlt::rl::utils::evaluation::Specification<
-            double,
-            TI,
-            typename penv::ENVIRONMENT,
-            1,
-            prl::ON_POLICY_RUNNER_STEP_LIMIT>;
-        rlt::rl::utils::evaluation::Result<EvalSpec> eval_result{};
-        rlt::rl::environments::DummyUI dummy_ui{};
-        rlt::evaluate(device, eval_env, dummy_ui, ppo.actor, eval_result, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
-        qInfo() << "[Ant] eval_return" << eval_result.returns_mean
-                << "eval_length" << eval_result.episode_length_mean
-                << "ppo_step" << ppo_step;
+    // Schedule blocking eval episode: training will pause until it finishes.
+    if (!eval_in_progress && (ppo_step % EVAL_INTERVAL) == 0) {
+        eval_in_progress = true;
+        eval_steps = 0;
+        eval_return = 0.0;
+        rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
     }
 }
 
