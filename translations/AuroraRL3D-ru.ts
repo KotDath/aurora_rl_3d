@@ -86,6 +86,34 @@
     </message>
 </context>
 <context>
+    <name>AntSettingsPage</name>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntSettingsPage.qml" line="10"/>
+        <source>Ant training setup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntSettingsPage.qml" line="26"/>
+        <source>Перед запуском настроите тренировку</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntSettingsPage.qml" line="39"/>
+        <source>Шагов за кадр (step)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntSettingsPage.qml" line="50"/>
+        <source>Отрисовка каждые N итераций</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntSettingsPage.qml" line="55"/>
+        <source>Запустить агента</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DefaultCoverPage</name>
     <message>
         <location filename="../../aurora_rl_3d/qml/cover/DefaultCoverPage.qml" line="12"/>

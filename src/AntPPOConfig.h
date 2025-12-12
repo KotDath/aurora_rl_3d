@@ -28,7 +28,14 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER::rl_tools;
 template <typename T, typename TI>
 struct Environment
 {
-    using ENVIRONMENT_PARAMETERS = rlt::rl::environments::mujoco::ant::DefaultParameters<T, TI>;
+    struct ENVIRONMENT_PARAMETERS : rlt::rl::environments::mujoco::ant::DefaultParameters<T, TI>
+    {
+        static constexpr T HEALTY_Z_MIN = static_cast<T>(0.05);
+        static constexpr T HEALTY_Z_MAX = static_cast<T>(3.5);
+        static constexpr T HEALTHY_REWARD = static_cast<T>(1.0);
+        static constexpr T CONTROL_COST_WEIGHT = static_cast<T>(0.1);
+        static constexpr T RESET_NOISE_SCALE = static_cast<T>(0.1);
+    };
     using ENVIRONMENT_SPEC = rlt::rl::environments::mujoco::ant::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
     using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
 };
@@ -36,10 +43,8 @@ struct Environment
 template <typename T, typename TI, typename ENVIRONMENT>
 struct RL
 {
-    // Batch size must not exceed rollout samples (N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV).
-    // For per-frame visualization we run 1 step per env => 2 samples; set batch to 2.
-    // For faster training revert to ON_POLICY_RUNNER_STEPS_PER_ENV=64 and BATCH_SIZE=512.
-    static constexpr TI BATCH_SIZE = 2;
+    // Aim for ~30-40 ms per training step on CPU: keep batch and networks small.
+    static constexpr TI BATCH_SIZE = 32;
 
     template <typename CAPABILITY>
     struct Actor
@@ -97,36 +102,38 @@ struct RL
 
     struct PPO_PARAMETERS : rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>
     {
-        static constexpr TI N_EPOCHS = 2;
+        // Single-epoch PPO to minimize per-step latency.
+        static constexpr TI N_EPOCHS = 1;
         static constexpr bool LEARN_ACTION_STD = true;
-        static constexpr T INITIAL_ACTION_STD = 0.5;
+        static constexpr T INITIAL_ACTION_STD = 0.6;
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
-        static constexpr bool NORMALIZE_ADVANTAGE = false;
+        static constexpr T LAMBDA = static_cast<T>(0.95);
+        static constexpr T CLIP_EPSILON = static_cast<T>(0.2);
+        static constexpr bool NORMALIZE_ADVANTAGE = true;
         static constexpr T GAMMA = 0.99;
         static constexpr bool ADAPTIVE_LEARNING_RATE = true;
-        static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.008;
+        static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.01;
         static constexpr bool NORMALIZE_OBSERVATIONS = true;
     };
 
-    static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS =
-        PPO_PARAMETERS::NORMALIZE_OBSERVATIONS ? 1 : 0;
+    static constexpr TI OBSERVATION_NORMALIZATION_WARMUP_STEPS =
+        PPO_PARAMETERS::NORMALIZE_OBSERVATIONS ? 2 : 0;
 
     using PPO_SPEC = rlt::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
     using PPO_TYPE = rlt::rl::algorithms::PPO<PPO_SPEC>;
     using PPO_BUFFERS_TYPE = rlt::rl::algorithms::ppo::Buffers<rlt::rl::algorithms::ppo::BufferSpecification<PPO_SPEC>>;
 
-    static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 1000;
-    // Recommended: 8 envs for faster, smoother PPO throughput; temporarily reduced to 2 to lighten load.
-    static constexpr TI N_ENVIRONMENTS = 2;
+    // Allow longer render episodes without adding per-update work (dataset still 8 steps/env).
+    static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 1024;
+    static constexpr TI N_ENVIRONMENTS = 4;
     using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<
         T,
         TI,
         ENVIRONMENT,
         N_ENVIRONMENTS,
         ON_POLICY_RUNNER_STEP_LIMIT>;
-    // Debug-friendly: 1 step per call to see sequential step increments in UI for env0.
-    // Increase to 64 for efficient PPO training.
-    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 1;
+    // 4 envs * 8 steps = 32 samples per PPO update; keeps latency within 30-40 ms.
+    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 8;
     using ON_POLICY_RUNNER_DATASET_SPEC =
         rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;
     using ON_POLICY_RUNNER_DATASET_TYPE = rlt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;

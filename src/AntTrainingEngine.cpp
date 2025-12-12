@@ -31,15 +31,8 @@
 #endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER::rl_tools;
 
-#if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
-#else
-#if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
-#else
+#include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#endif
-#endif
 
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
@@ -68,14 +61,22 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER::rl_tools;
 #include <QElapsedTimer>
 
 namespace {
-using DEVICE = rlt::devices::DefaultCPU;
+using BaseCPUSpec = rlt::devices::cpu::Specification<
+    rlt::devices::math::CPU,
+    rlt::devices::random::CPU,
+    rlt::LOGGER_FACTORY<>>;
+struct ParallelCPUSpec : BaseCPUSpec
+{
+    using index_t = BaseCPUSpec::index_t;
+    using EXECUTION_HINTS = rlt::rl::components::on_policy_runner::ExecutionHints<index_t, 6>;
+};
+using DEVICE = rlt::devices::CPU<ParallelCPUSpec>;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
 using TI = typename DEVICE::index_t;
 
 template <typename ENVIRONMENT>
 void allocMujocoEnvSafe(ENVIRONMENT& env)
 {
-    using T = typename ENVIRONMENT::T;
     using TIEnv = typename ENVIRONMENT::TI;
     constexpr TIEnv error_length = 1000;
     char error[error_length] = "Could not load model";
@@ -243,12 +244,27 @@ struct AntTrainingEngine::MuJoCoContext
     Normalizer observation_normalizer;
     penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
     penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
+    penv::ENVIRONMENT eval_env;
+    RNG evaluation_rng;
+    // Dedicated render runner (decoupled from training).
+    using RenderRunnerSpec = rlt::rl::components::on_policy_runner::Specification<double, TI, typename penv::ENVIRONMENT, 1, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
+    using RenderRunner = rlt::rl::components::OnPolicyRunner<RenderRunnerSpec>;
+    using RenderDatasetSpec = rlt::rl::components::on_policy_runner::DatasetSpecification<RenderRunnerSpec, 1>;
+    using RenderDataset = rlt::rl::components::on_policy_runner::Dataset<RenderDatasetSpec>;
+    using RenderActorEvalType = typename prl::ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, RenderRunnerSpec::N_ENVIRONMENTS>;
+    using RenderActorEvalBuffers = typename RenderActorEvalType::template Buffer<>;
+    RenderRunner render_runner;
+    RenderDataset render_dataset;
+    RenderActorEvalBuffers render_actor_eval_buffers;
+    penv::ENVIRONMENT render_env;
+    penv::ENVIRONMENT::Parameters render_env_parameters{};
+    RNG render_rng;
 
     int torso_geom_id{-1};
     int upper_geom_ids[4]{-1, -1, -1, -1};
     int lower_geom_ids[4]{-1, -1, -1, -1};
 
-    TI seed = 600;
+    TI seed = 7;
     TI ppo_step = 0;
     float smoothedReturn = 0.0f;
 
@@ -271,13 +287,27 @@ AntTrainingEngine::MuJoCoContext::MuJoCoContext()
     rlt::malloc(device, observation_normalizer);
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, critic_optimizer);
+    rlt::malloc(device, eval_env);
+    rlt::malloc(device, evaluation_rng);
+    rlt::malloc(device, render_runner);
+    rlt::malloc(device, render_dataset);
+    rlt::malloc(device, render_actor_eval_buffers);
+    rlt::malloc(device, render_env);
+    rlt::malloc(device, render_rng);
     for (TI i = 0; i < prl::N_ENVIRONMENTS; ++i) {
         rlt::malloc(device, envs[i]);
     }
 
+    actor_optimizer.parameters.alpha = static_cast<typename prl::PPO_SPEC::T>(3e-4);
+    critic_optimizer.parameters.alpha = static_cast<typename prl::PPO_SPEC::T>(3e-4);
+
     rlt::init(device);
     rlt::init(device, rng, seed);
+    rlt::init(device, evaluation_rng, static_cast<int>(seed + 1));
+    rlt::init(device, render_rng, static_cast<int>(seed + 2));
+    rlt::init(device, eval_env);
     rlt::init(device, runner, envs, env_parameters, rng);
+    rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
     rlt::init(device, observation_normalizer);
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
     rlt::init(device, logger);
@@ -290,6 +320,7 @@ AntTrainingEngine::MuJoCoContext::MuJoCoContext()
         rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
         rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
         rlt::init(device, runner, envs, env_parameters, rng);
+        rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
     }
 
     const mjModel* model = envs[0].model;
@@ -323,6 +354,13 @@ AntTrainingEngine::MuJoCoContext::~MuJoCoContext()
     rlt::free(device, observation_normalizer);
     rlt::free(device, actor_optimizer);
     rlt::free(device, critic_optimizer);
+    rlt::free(device, render_runner);
+    rlt::free(device, render_dataset);
+    rlt::free(device, render_actor_eval_buffers);
+    rlt::free(device, render_env);
+    rlt::free(device, render_rng);
+    rlt::free(device, eval_env);
+    rlt::free(device, evaluation_rng);
     for (TI i = 0; i < prl::N_ENVIRONMENTS; ++i) {
         rlt::free(device, envs[i]);
     }
@@ -341,7 +379,7 @@ void AntTrainingEngine::MuJoCoContext::stateToPose(
 }
 
 namespace {
-QMatrix4x4 makeModelMatrix(const mjtNum* pos, const mjtNum* quat)
+[[maybe_unused]] QMatrix4x4 makeModelMatrix(const mjtNum* pos, const mjtNum* quat)
 {
     // MuJoCo quaternion: [w, x, y, z]. Swap Y/Z in position.
     QVector3D position(pos[0], pos[2], pos[1]);
@@ -424,15 +462,15 @@ void AntTrainingEngine::MuJoCoContext::fillSegmentPosesFromSimulation(
 void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, PoseSnapshot& pose)
 {
     const bool logThisStep = (ppo_step < 3) || ((ppo_step % 250) == 0);
-    QElapsedTimer timer;
+    QElapsedTimer stepTimer;
+    stepTimer.start();
     if (logThisStep) {
-        timer.start();
         qDebug() << "[Ant] MuJoCo trainStep start" << "ppo_step" << ppo_step;
     }
 
     rlt::collect(device, dataset, runner, ppo.actor, actor_eval_buffers, rng);
     if (logThisStep) {
-        qDebug() << "[Ant] collect done" << "t_ms" << timer.elapsed();
+        qDebug() << "[Ant] collect done" << "t_ms" << stepTimer.elapsed();
     }
 
     if constexpr (prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS) {
@@ -440,7 +478,7 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
         rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
         rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
         if (logThisStep) {
-            qDebug() << "[Ant] normalization done" << "t_ms" << timer.elapsed();
+            qDebug() << "[Ant] normalization done" << "t_ms" << stepTimer.elapsed();
         }
     }
 
@@ -463,46 +501,41 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
     // ---------------------------------------------------------------
 
     if (logThisStep) {
-        qDebug() << "[Ant] evaluate critic done" << "t_ms" << timer.elapsed();
+        qDebug() << "[Ant] evaluate critic done" << "t_ms" << stepTimer.elapsed();
     }
 
     rlt::estimate_generalized_advantages(device, dataset, typename prl::PPO_TYPE::SPEC::PARAMETERS{});
     if (logThisStep) {
-        qDebug() << "[Ant] GAE estimation done" << "t_ms" << timer.elapsed();
+        qDebug() << "[Ant] GAE estimation done" << "t_ms" << stepTimer.elapsed();
     }
 
     rlt::train(device, ppo, dataset,
                actor_optimizer, critic_optimizer,
                ppo_buffers, actor_buffers, critic_buffers, rng);
     if (logThisStep) {
-        qDebug() << "[Ant] PPO train done" << "t_ms" << timer.elapsed();
+        qDebug() << "[Ant] PPO train done" << "t_ms" << stepTimer.elapsed();
     }
 
     ++ppo_step;
 
+    // Step decoupled render env (does not affect training).
+    rlt::collect(device, render_dataset, render_runner, ppo.actor, render_actor_eval_buffers, render_rng);
+
     constexpr TI render_env_index = 0;
-    auto& render_env = rlt::get(runner.environments, 0, render_env_index);
-    auto& render_state = rlt::get(runner.states, 0, render_env_index);
-    const TI render_episode_step = rlt::get(runner.episode_step, 0, render_env_index);
-    const bool render_truncated = rlt::get(runner.truncated, 0, render_env_index);
+    auto& render_env = rlt::get(render_runner.environments, 0, render_env_index);
+    auto& render_state = rlt::get(render_runner.states, 0, render_env_index);
+    const TI render_episode_step = rlt::get(render_runner.episode_step, 0, render_env_index);
+    const bool render_truncated = rlt::get(render_runner.truncated, 0, render_env_index);
     const float healthyMin = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MIN);
     const float healthyMax = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MAX);
     const float torsoZ = static_cast<float>(render_state.q[2]);
     float healthScore = 0.0f;
-    constexpr float kLocalMinHealthyZ = 0.3f; // local guard until RLTools parameter is rebuilt
     if (std::isfinite(torsoZ)) {
         const float normalized = (torsoZ - healthyMin) / (healthyMax - healthyMin);
         healthScore = qMin(1.0f, qMax(0.0f, normalized));
     }
     if (render_truncated || render_env.last_terminated) {
         healthScore = 0.0f;
-    }
-    // Force truncate/reset if torso drops below tighter local threshold; covers case when linked RLTools still uses 0.2.
-    if (torsoZ < kLocalMinHealthyZ || !std::isfinite(torsoZ)) {
-        rlt::set(runner.truncated, 0, render_env_index, true);
-        render_env.last_terminated = true;
-        healthScore = 0.0f;
-        metrics.episodeProgress = 1.0f;
     }
 
     const float rewardMean = rlt::mean(device, dataset.rewards);
@@ -532,7 +565,31 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
                  << "smoothed" << smoothedReturn
                  << "progress" << metrics.episodeProgress
                  << "episodeStep" << render_episode_step
-                 << "t_ms" << timer.elapsed();
+                 << "t_ms" << stepTimer.elapsed();
+    }
+    // Ant example-style periodic progress log.
+    if ((ppo_step % 10) == 0) {
+        qInfo() << "[Ant] ppo_step" << ppo_step
+                << "rewardMean" << rewardMean
+                << "renderReward" << renderReward
+                << "smoothed" << smoothedReturn
+                << "episodeStep" << render_episode_step
+                << "elapsed_ms" << stepTimer.elapsed();
+    }
+    // Periodic headless evaluation (similar to memory/ant_example).
+    if ((ppo_step % 50) == 0) {
+        using EvalSpec = rlt::rl::utils::evaluation::Specification<
+            double,
+            TI,
+            typename penv::ENVIRONMENT,
+            1,
+            prl::ON_POLICY_RUNNER_STEP_LIMIT>;
+        rlt::rl::utils::evaluation::Result<EvalSpec> eval_result{};
+        rlt::rl::environments::DummyUI dummy_ui{};
+        rlt::evaluate(device, eval_env, dummy_ui, ppo.actor, eval_result, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+        qInfo() << "[Ant] eval_return" << eval_result.returns_mean
+                << "eval_length" << eval_result.episode_length_mean
+                << "ppo_step" << ppo_step;
     }
 }
 
@@ -845,7 +902,7 @@ void SimpleTrainingEngine::step(SimpleTrainingMetrics& metrics)
     }
 
     ++m_episodeStep;
-    if (m_episodeStep >= prl::ON_POLICY_RUNNER_STEP_LIMIT) {
+    if (static_cast<simple_train::TI>(m_episodeStep) >= prl::ON_POLICY_RUNNER_STEP_LIMIT) {
         resetEpisode();
     }
 
