@@ -43,8 +43,8 @@ struct Environment
 template <typename T, typename TI, typename ENVIRONMENT>
 struct RL
 {
-    // Aim for ~30-40 ms per training step on CPU: keep batch and networks small.
-    static constexpr TI BATCH_SIZE = 32;
+    // Faster updates: smaller batch, lighter nets.
+    static constexpr TI BATCH_SIZE = 64;
 
     template <typename CAPABILITY>
     struct Actor
@@ -52,6 +52,7 @@ struct RL
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
         using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
         using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+        // SB3 Ant-v4 style: 2 hidden layers x 64.
         using CONFIG = rlt::nn_models::mlp::Configuration<
             T,
             TI,
@@ -75,6 +76,7 @@ struct RL
         using INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, ENVIRONMENT::Observation::DIM>;
         using STANDARDIZATION_LAYER_CONFIG = rlt::nn::layers::standardize::Configuration<T, TI>;
         using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindConfiguration<STANDARDIZATION_LAYER_CONFIG>;
+        // Mirror actor width/depth.
         using CONFIG = rlt::nn_models::mlp::Configuration<
             T,
             TI,
@@ -102,10 +104,9 @@ struct RL
 
     struct PPO_PARAMETERS : rlt::rl::algorithms::ppo::DefaultParameters<T, TI, BATCH_SIZE>
     {
-        // Single-epoch PPO to minimize per-step latency.
-        static constexpr TI N_EPOCHS = 1;
+        static constexpr TI N_EPOCHS = 5;
         static constexpr bool LEARN_ACTION_STD = true;
-        static constexpr T INITIAL_ACTION_STD = 0.6;
+        static constexpr T INITIAL_ACTION_STD = 0.5;
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
         static constexpr T LAMBDA = static_cast<T>(0.95);
         static constexpr T CLIP_EPSILON = static_cast<T>(0.2);
@@ -124,7 +125,7 @@ struct RL
     using PPO_BUFFERS_TYPE = rlt::rl::algorithms::ppo::Buffers<rlt::rl::algorithms::ppo::BufferSpecification<PPO_SPEC>>;
 
     // Allow longer render episodes without adding per-update work (dataset still 8 steps/env).
-    static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 1024;
+    static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 512;
     static constexpr TI N_ENVIRONMENTS = 4;
     using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<
         T,
@@ -132,8 +133,8 @@ struct RL
         ENVIRONMENT,
         N_ENVIRONMENTS,
         ON_POLICY_RUNNER_STEP_LIMIT>;
-    // 4 envs * 8 steps = 32 samples per PPO update; keeps latency within 30-40 ms.
-    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 8;
+    // 8 envs * 128 steps = 1024 samples per PPO update.
+    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
     using ON_POLICY_RUNNER_DATASET_SPEC =
         rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;
     using ON_POLICY_RUNNER_DATASET_TYPE = rlt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;

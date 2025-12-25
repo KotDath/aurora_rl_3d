@@ -107,6 +107,8 @@ private:
     float m_cameraYaw;
     float m_cameraPitch;
     float m_cameraHeightDelta = 0.0f;
+    bool m_followAntCamera = false;
+    float m_followRadius = 8.0f;
     GameLoop m_gameLoop;
     std::unique_ptr<AntSceneController> m_antController;
     std::unique_ptr<SimpleSceneController> m_simpleController;

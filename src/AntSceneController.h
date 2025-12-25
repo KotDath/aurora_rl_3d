@@ -5,13 +5,35 @@
 #define ANTSCENECONTROLLER_H
 
 #include <QVector>
+#include <QObject>
+#include <QThread>
+#include <QTimer>
 #include <array>
 
 #include "SceneTypes.h"
 #include "AntTrainingEngine.h"
 
-class AntSceneController
+class AntTrainerWorker : public QObject
 {
+    Q_OBJECT
+public:
+    explicit AntTrainerWorker(QObject* parent = nullptr);
+    ~AntTrainerWorker();
+
+public slots:
+    void step();
+
+signals:
+    void metricsReady(const AntTrainingMetrics& metrics, const AntTrainingEngine::PoseSnapshot& pose);
+
+private:
+    AntTrainingEngine m_engine;
+};
+
+class AntSceneController
+    : public QObject
+{
+    Q_OBJECT
 public:
     struct MeshSlots
     {
@@ -37,11 +59,13 @@ public:
         AntTrainingMetrics metrics;
     };
 
-    AntSceneController();
+    explicit AntSceneController(QObject* parent = nullptr);
+    ~AntSceneController();
 
     void setMeshSlots(const MeshSlots& meshSlots);
     UpdateResult update();
     const QVector<SceneRenderInstance>& instances() const { return m_instances; }
+    QVector3D torsoPosition() const { return m_pose.torsoPosition; }
 
 private:
     void ensureInstances();
@@ -49,8 +73,16 @@ private:
 
     MeshSlots m_slots;
     QVector<SceneRenderInstance> m_instances;
-    AntTrainingEngine m_engine;
+    AntTrainingEngine::PoseSnapshot m_pose{};
     AntTrainingMetrics m_metrics;
+    bool m_metricsUpdated{false};
+
+    QThread m_workerThread;
+    AntTrainerWorker* m_worker{nullptr};
+    QTimer m_tickTimer;
+
+private slots:
+    void handleMetrics(const AntTrainingMetrics& metrics, const AntTrainingEngine::PoseSnapshot& pose);
 };
 
 #endif // ANTSCENECONTROLLER_H

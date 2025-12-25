@@ -13,8 +13,43 @@ constexpr int kLegSegmentsPerLeg = 2;
 constexpr int kTotalInstances = kLegStartIndex + kLegSegmentsPerLeg * 4;
 
 }
+AntTrainerWorker::AntTrainerWorker(QObject* parent)
+    : QObject(parent)
+{
+}
 
-AntSceneController::AntSceneController() = default;
+AntTrainerWorker::~AntTrainerWorker() = default;
+
+void AntTrainerWorker::step()
+{
+    AntTrainingMetrics metrics;
+    m_engine.step(metrics);
+    emit metricsReady(metrics, m_engine.currentPose());
+}
+
+AntSceneController::AntSceneController(QObject* parent)
+    : QObject(parent)
+{
+    qRegisterMetaType<AntTrainingMetrics>("AntTrainingMetrics");
+    qRegisterMetaType<AntTrainingEngine::PoseSnapshot>("AntTrainingEngine::PoseSnapshot");
+    m_worker = new AntTrainerWorker();
+    m_worker->moveToThread(&m_workerThread);
+    connect(&m_workerThread, &QThread::finished, m_worker, &QObject::deleteLater);
+    connect(m_worker, &AntTrainerWorker::metricsReady, this, &AntSceneController::handleMetrics);
+    m_tickTimer.setParent(this);
+    m_tickTimer.setInterval(0);
+    m_tickTimer.setSingleShot(false);
+    connect(&m_tickTimer, &QTimer::timeout, m_worker, &AntTrainerWorker::step, Qt::QueuedConnection);
+    m_workerThread.start();
+    m_tickTimer.start();
+}
+
+AntSceneController::~AntSceneController()
+{
+    m_tickTimer.stop();
+    m_workerThread.quit();
+    m_workerThread.wait();
+}
 
 void AntSceneController::setMeshSlots(const MeshSlots& meshSlots)
 {
@@ -25,10 +60,10 @@ void AntSceneController::setMeshSlots(const MeshSlots& meshSlots)
 AntSceneController::UpdateResult AntSceneController::update()
 {
     UpdateResult result;
-    result.metricsChanged = true;
-    m_engine.step(result.metrics);
-    m_metrics = result.metrics;
-    updateFromPose(m_engine.currentPose());
+    result.metricsChanged = m_metricsUpdated;
+    result.metrics = m_metrics;
+    m_metricsUpdated = false;
+    updateFromPose(m_pose);
     return result;
 }
 
@@ -55,6 +90,13 @@ void AntSceneController::ensureInstances()
             m_instances[lowerIndex].meshId = m_slots.lowerLeg;
         }
     }
+}
+
+void AntSceneController::handleMetrics(const AntTrainingMetrics& metrics, const AntTrainingEngine::PoseSnapshot& pose)
+{
+    m_metrics = metrics;
+    m_pose = pose;
+    m_metricsUpdated = true;
 }
 
 void AntSceneController::updateFromPose(const AntTrainingEngine::PoseSnapshot& pose)

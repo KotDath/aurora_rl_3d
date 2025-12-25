@@ -4,11 +4,19 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import AuroraRL3D 1.0
+import Nemo.KeepAlive 1.2
 import "../components"
 
 Page {
+    id: antLearningPage
     objectName: "antLearningPage"
     allowedOrientations: Orientation.LandscapeMask
+
+    // Keep the screen awake while training is visible.
+    DisplayBlanking {
+        id: displayBlanking
+        preventBlanking: true
+    }
 
     RenderWindow {
         id: trainingWindow
@@ -16,6 +24,7 @@ Page {
         sceneProfile: RenderWindow.SceneAntTraining
         transformOrigin: Item.Center
         rotation: 180
+        antFollowCamera: true
     }
 
     Rectangle {
@@ -37,6 +46,23 @@ Page {
                 color: "white"
                 style: Text.Outline
                 styleColor: "black"
+            }
+
+            Item {
+                width: parent.width
+                height: progressTraining.implicitHeight
+                Rectangle {
+                    anchors.fill: parent
+                    color: "#66000000"
+                    radius: Theme.paddingSmall
+                }
+                ProgressBar {
+                    id: progressTraining
+                    anchors.fill: parent
+                    // Show step counter; progress is modulo 50 PPO steps to visualize activity.
+                    value: (trainingWindow.antIteration % 50) / 50
+                    label: qsTr("Обучение: шаг %1").arg(trainingWindow.antIteration)
+                }
             }
 
             Row {
@@ -131,41 +157,6 @@ Page {
                 text: qsTr("Back")
                 onClicked: pageStack.replace(Qt.resolvedUrl("MainPage.qml"))
                 z: 2
-            }
-        }
-
-        VirtualJoystick {
-            id: antJoystick
-            anchors {
-                left: parent.left
-                bottom: parent.bottom
-                margins: Theme.paddingLarge
-            }
-            onValueChanged: trainingWindow.cameraInput = Qt.point(value.x, value.y)
-        }
-
-        Column {
-            id: verticalControls
-            anchors {
-                right: parent.right
-                verticalCenter: parent.verticalCenter
-                margins: Theme.paddingLarge
-            }
-            spacing: Theme.paddingMedium
-            z: 2
-
-            Button {
-                text: "\u2191"
-                width: Theme.itemSizeHuge
-                onPressed: upTimer.start(); onReleased: upTimer.stop()
-                Timer { id: upTimer; interval: 50; repeat: true; running: false; onTriggered: trainingWindow.addCameraHeightDelta(0.05) }
-            }
-
-            Button {
-                text: "\u2193"
-                width: Theme.itemSizeHuge
-                onPressed: downTimer.start(); onReleased: downTimer.stop()
-                Timer { id: downTimer; interval: 50; repeat: true; running: false; onTriggered: trainingWindow.addCameraHeightDelta(-0.05) }
             }
         }
 

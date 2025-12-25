@@ -32,6 +32,7 @@ class RenderWindow : public QQuickFramebufferObject
     Q_PROPERTY(int simpleIteration READ simpleIteration NOTIFY simpleMetricsChanged)
     Q_PROPERTY(qreal simpleAngle READ simpleAngle NOTIFY simpleMetricsChanged)
     Q_PROPERTY(qreal simpleAngularVelocity READ simpleAngularVelocity NOTIFY simpleMetricsChanged)
+    Q_PROPERTY(bool antFollowCamera READ antFollowCamera WRITE setAntFollowCamera NOTIFY antFollowCameraChanged)
 
 public:
     Q_ENUM(SceneProfile)
@@ -82,9 +83,12 @@ public:
     int simpleIteration() const { return m_simpleMetrics.iteration; }
     qreal simpleAngle() const { return m_simpleMetrics.angle; }
     qreal simpleAngularVelocity() const { return m_simpleMetrics.angularVelocity; }
+    bool antFollowCamera() const { return m_antFollowCamera; }
 
     void publishAntMetrics(const AntTrainingMetrics& metrics);
     void publishSimpleMetrics(const SimpleTrainingMetrics& metrics);
+
+    Q_INVOKABLE void setAntFollowCamera(bool follow);
 
 signals:
     void objectCountChanged();
@@ -94,6 +98,7 @@ signals:
     void cameraInputChanged();
     void antMetricsChanged();
     void simpleMetricsChanged();
+    void antFollowCameraChanged();
 
 private slots:
     void flushAntMetrics();
@@ -119,6 +124,7 @@ private:
     SimpleTrainingMetrics m_simpleMetrics;
     SimpleTrainingMetrics m_pendingSimpleMetrics;
     bool m_simpleMetricsQueued = false;
+    bool m_antFollowCamera = false;
 };
 
 #endif // RENDERWINDOW_H

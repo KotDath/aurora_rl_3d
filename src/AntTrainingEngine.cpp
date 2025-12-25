@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include <limits>
 
 // RLtools
 #include <rl_tools/operations/cpu_mux.h>
@@ -59,6 +60,12 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER::rl_tools;
 #include <QQuaternion>
 #include <QDebug>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QTextStream>
+#include <QDir>
+#include <QStandardPaths>
+#include <QDateTime>
+#include <QString>
 
 namespace {
 using BaseCPUSpec = rlt::devices::cpu::Specification<
@@ -142,7 +149,7 @@ AntTrainingEngine::~AntTrainingEngine() = default;
 
 void AntTrainingEngine::step(AntTrainingMetrics& metrics)
 {
-    const int kMinStepMs = 40; // ~25 Hz cap to match pendulum cadence
+    const int kMinStepMs = 15;
     if (m_stepTimer.isValid()) {
         if (m_stepTimer.elapsed() < kMinStepMs && m_hasLastMetrics) {
             metrics = m_lastMetrics;
@@ -259,10 +266,10 @@ struct AntTrainingEngine::MuJoCoContext
     penv::ENVIRONMENT render_env;
     penv::ENVIRONMENT::Parameters render_env_parameters{};
     RNG render_rng;
+    static constexpr TI EVAL_INTERVAL = 50;
     bool eval_in_progress = false;
     TI eval_steps = 0;
     double eval_return = 0.0;
-    static constexpr TI EVAL_INTERVAL = 50;
 
     int torso_geom_id{-1};
     int upper_geom_ids[4]{-1, -1, -1, -1};
@@ -271,6 +278,17 @@ struct AntTrainingEngine::MuJoCoContext
     TI seed = 7;
     TI ppo_step = 0;
     float smoothedReturn = 0.0f;
+    QElapsedTimer trainingTimer;
+    QString statsPath;
+    void writeStat(const QString& kind,
+                   TI step,
+                   double trainReward,
+                   double evalReturn,
+                   TI evalLength,
+                   qint64 rolloutMs,
+                   qint64 updateMs,
+                   double spsRollout,
+                   double spsUpdate);
 
     static void stateToPose(const penv::ENVIRONMENT::State& state, PoseSnapshot& pose);
     void fillSegmentPosesFromSimulation(const penv::ENVIRONMENT& env, PoseSnapshot& pose);
@@ -315,6 +333,13 @@ AntTrainingEngine::MuJoCoContext::MuJoCoContext()
     rlt::init(device, observation_normalizer);
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
     rlt::init(device, logger);
+    trainingTimer.start();
+
+    const QString docsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    if (!docsPath.isEmpty()) {
+        QDir().mkpath(docsPath);
+        statsPath = docsPath + QLatin1String("/stat.txt");
+    }
 
     if constexpr (prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS) {
         for (TI warmup = 0; warmup < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; ++warmup) {
@@ -463,73 +488,131 @@ void AntTrainingEngine::MuJoCoContext::fillSegmentPosesFromSimulation(
     }
 }
 
+void AntTrainingEngine::MuJoCoContext::writeStat(const QString& kind,
+                                                 TI step,
+                                                 double trainReward,
+                                                 double evalReturn,
+                                                 TI evalLength,
+                                                 qint64 rolloutMs,
+                                                 qint64 updateMs,
+                                                 double spsRollout,
+                                                 double spsUpdate)
+{
+    if (statsPath.isEmpty()) {
+        return;
+    }
+    QFile file(statsPath);
+    if (!file.open(QIODevice::Append | QIODevice::Text)) {
+        qWarning() << "[Ant] Failed to open stats file" << statsPath << file.errorString();
+        return;
+    }
+    QTextStream out(&file);
+    if (file.size() == 0) {
+        out << "kind\t"
+               "timestamp\t"
+               "elapsed_ms\t"
+               "ppo_step\t"
+               "train_reward_mean\t"
+               "eval_return\t"
+               "eval_length\t"
+               "rollout_ms\t"
+               "update_ms\t"
+               "sps_rollout\t"
+               "sps_update\n";
+    }
+    out.setRealNumberNotation(QTextStream::FixedNotation);
+    out.setRealNumberPrecision(6);
+    out << kind << '\t'
+        << QDateTime::currentDateTime().toString(Qt::ISODate) << '\t'
+        << trainingTimer.elapsed() << '\t'
+        << step << '\t'
+        << trainReward << '\t'
+        << evalReturn << '\t'
+        << evalLength << '\t'
+        << rolloutMs << '\t'
+        << updateMs << '\t'
+        << spsRollout << '\t'
+        << spsUpdate << '\n';
+}
+
 void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, PoseSnapshot& pose)
 {
-    const bool logThisStep = (ppo_step < 3) || ((ppo_step % 250) == 0);
+    const bool logThisStep = (ppo_step < 3);
     QElapsedTimer stepTimer;
     stepTimer.start();
+    // Avoid per-frame spam during eval; only log the very first steps.
     if (logThisStep) {
         qDebug() << "[Ant] MuJoCo trainStep start" << "ppo_step" << ppo_step;
     }
 
+    // If an eval episode is active, step render_runner once; do not advance training.
     if (eval_in_progress) {
-        // Drive render runner as evaluation episode; no training until it finishes.
         rlt::collect(device, render_dataset, render_runner, ppo.actor, render_actor_eval_buffers, render_rng);
         constexpr TI render_env_index = 0;
-        auto& render_env_eval = rlt::get(render_runner.environments, 0, render_env_index);
-        auto& render_state_eval = rlt::get(render_runner.states, 0, render_env_index);
-        const TI render_episode_step_eval = rlt::get(render_runner.episode_step, 0, render_env_index);
-        const bool render_truncated_eval = rlt::get(render_runner.truncated, 0, render_env_index);
+        auto& render_env_ref = rlt::get(render_runner.environments, 0, render_env_index);
+        auto& render_state = rlt::get(render_runner.states, 0, render_env_index);
+        const TI render_episode_step = rlt::get(render_runner.episode_step, 0, render_env_index);
+        const bool render_truncated = rlt::get(render_runner.truncated, 0, render_env_index);
 
-        const float healthyMinEval = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MIN);
-        const float healthyMaxEval = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MAX);
-        const float torsoZEval = static_cast<float>(render_state_eval.q[2]);
-        float healthScoreEval = 0.0f;
-        if (std::isfinite(torsoZEval)) {
-            const float normalized = (torsoZEval - healthyMinEval) / (healthyMaxEval - healthyMinEval);
-            healthScoreEval = qMin(1.0f, qMax(0.0f, normalized));
+        const float healthyMin = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MIN);
+        const float healthyMax = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MAX);
+        const float torsoZ = static_cast<float>(render_state.q[2]);
+        float healthScore = 0.0f;
+        if (std::isfinite(torsoZ)) {
+            const float normalized = (torsoZ - healthyMin) / (healthyMax - healthyMin);
+            healthScore = qMin(1.0f, qMax(0.0f, normalized));
         }
-        if (render_truncated_eval || render_env_eval.last_terminated) {
-            healthScoreEval = 0.0f;
+        if (render_truncated || render_env_ref.last_terminated) {
+            healthScore = 0.0f;
         }
 
-        const float renderRewardEval = static_cast<float>(render_env_eval.last_reward);
-        eval_return += renderRewardEval;
+        const float renderReward = static_cast<float>(render_env_ref.last_reward);
+        eval_return += renderReward;
         ++eval_steps;
 
-        metrics.reward = renderRewardEval;
+        metrics.reward = renderReward;
         metrics.averageReward = smoothedReturn;
         metrics.episodeProgress =
-            qMin(1.0f, static_cast<float>(render_episode_step_eval) /
+            qMin(1.0f, static_cast<float>(render_episode_step) /
                            static_cast<float>(prl::ON_POLICY_RUNNER_STEP_LIMIT));
-        if (render_truncated_eval) {
+        if (render_truncated) {
             metrics.episodeProgress = 1.0f;
         }
-        metrics.health = healthScoreEval;
+        metrics.health = healthScore;
         metrics.height = pose.torsoPosition.y();
-        metrics.iteration = static_cast<int>(render_episode_step_eval);
+        metrics.iteration = static_cast<int>(render_episode_step);
         metrics.fallbackActive = false;
 
-        stateToPose(render_state_eval, pose);
-        fillSegmentPosesFromSimulation(render_env_eval, pose);
+        stateToPose(render_state, pose);
+        fillSegmentPosesFromSimulation(render_env_ref, pose);
 
-        const bool eval_done = render_truncated_eval || render_env_eval.last_terminated ||
-                               eval_steps >= prl::ON_POLICY_RUNNER_STEP_LIMIT;
-        if (eval_done) {
+        const bool render_done = render_truncated || render_env_ref.last_terminated ||
+                          render_episode_step >= prl::ON_POLICY_RUNNER_STEP_LIMIT;
+        if (render_done) {
             qInfo() << "[Ant] eval episode done"
                     << "return" << eval_return
                     << "length" << eval_steps
                     << "ppo_step" << ppo_step;
+            writeStat(QStringLiteral("eval"),
+                      ppo_step,
+                      std::numeric_limits<double>::quiet_NaN(),
+                      eval_return,
+                      eval_steps,
+                      /*rollout_ms*/ 0,
+                      /*update_ms*/ 0,
+                      /*sps_rollout*/ 0.0,
+                      /*sps_update*/ 0.0);
             eval_in_progress = false;
             eval_steps = 0;
             eval_return = 0.0;
-            // Reset render runner so next training render starts clean.
-            rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
         }
         return;
     }
 
+    QElapsedTimer rolloutTimer;
+    rolloutTimer.start();
     rlt::collect(device, dataset, runner, ppo.actor, actor_eval_buffers, rng);
+    const qint64 rolloutMs = rolloutTimer.elapsed();
     if (logThisStep) {
         qDebug() << "[Ant] collect done" << "t_ms" << stepTimer.elapsed();
     }
@@ -570,86 +653,62 @@ void AntTrainingEngine::MuJoCoContext::trainStep(AntTrainingMetrics& metrics, Po
         qDebug() << "[Ant] GAE estimation done" << "t_ms" << stepTimer.elapsed();
     }
 
+    QElapsedTimer updateTimer;
+    updateTimer.start();
     rlt::train(device, ppo, dataset,
                actor_optimizer, critic_optimizer,
                ppo_buffers, actor_buffers, critic_buffers, rng);
+    const qint64 updateMs = updateTimer.elapsed();
     if (logThisStep) {
         qDebug() << "[Ant] PPO train done" << "t_ms" << stepTimer.elapsed();
     }
 
     ++ppo_step;
 
-    // Step decoupled render env; reset only when episode ends.
-    const bool render_needs_reset =
-        rlt::get(render_runner.truncated, 0, 0) ||
-        rlt::get(render_runner.environments, 0, 0).last_terminated;
-    if (render_needs_reset) {
-        rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
-    }
-    rlt::collect(device, render_dataset, render_runner, ppo.actor, render_actor_eval_buffers, render_rng);
-
-    constexpr TI render_env_index = 0;
-    auto& render_env = rlt::get(render_runner.environments, 0, render_env_index);
-    auto& render_state = rlt::get(render_runner.states, 0, render_env_index);
-    const TI render_episode_step = rlt::get(render_runner.episode_step, 0, render_env_index);
-    const bool render_truncated = rlt::get(render_runner.truncated, 0, render_env_index);
-    const float healthyMin = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MIN);
-    const float healthyMax = static_cast<float>(penv::ENVIRONMENT::Parameters::HEALTY_Z_MAX);
-    const float torsoZ = static_cast<float>(render_state.q[2]);
-    float healthScore = 0.0f;
-    if (std::isfinite(torsoZ)) {
-        const float normalized = (torsoZ - healthyMin) / (healthyMax - healthyMin);
-        healthScore = qMin(1.0f, qMax(0.0f, normalized));
-    }
-    if (render_truncated || render_env.last_terminated) {
-        healthScore = 0.0f;
-    }
-
+    // Metrics for training use training dataset; render metrics only update during eval.
     const float rewardMean = rlt::mean(device, dataset.rewards);
-    const float renderReward = static_cast<float>(render_env.last_reward);
-    smoothedReturn = 0.9f * smoothedReturn + 0.1f * renderReward;
-
-    metrics.reward = renderReward;
+    metrics.reward = rewardMean;
     metrics.averageReward = smoothedReturn;
-    metrics.episodeProgress =
-        qMin(1.0f, static_cast<float>(render_episode_step) /
-                       static_cast<float>(prl::ON_POLICY_RUNNER_STEP_LIMIT));
-    if (render_truncated) {
-        metrics.episodeProgress = 1.0f;
-    }
-    metrics.health = healthScore;
+    metrics.episodeProgress = 0.0f;
+    metrics.health = 0.0f;
     metrics.height = pose.torsoPosition.y();
-    metrics.iteration = static_cast<int>(render_episode_step);
+    metrics.iteration = static_cast<int>(ppo_step);
     metrics.fallbackActive = false;
-
-    stateToPose(render_state, pose);
-    fillSegmentPosesFromSimulation(render_env, pose);
 
     if (logThisStep) {
         qDebug() << "[Ant] MuJoCo trainStep done" << "ppo_step" << ppo_step
                  << "rewardMean" << rewardMean
-                 << "renderReward" << renderReward
                  << "smoothed" << smoothedReturn
                  << "progress" << metrics.episodeProgress
-                 << "episodeStep" << render_episode_step
                  << "t_ms" << stepTimer.elapsed();
     }
     // Ant example-style periodic progress log.
     if ((ppo_step % 10) == 0) {
         qInfo() << "[Ant] ppo_step" << ppo_step
                 << "rewardMean" << rewardMean
-                << "renderReward" << renderReward
                 << "smoothed" << smoothedReturn
-                << "episodeStep" << render_episode_step
                 << "elapsed_ms" << stepTimer.elapsed();
     }
-    // Schedule blocking eval episode: training will pause until it finishes.
-    if (!eval_in_progress && (ppo_step % EVAL_INTERVAL) == 0) {
+    // Periodic eval with render: block training until full episode completes.
+    if ((ppo_step % EVAL_INTERVAL) == 0) {
+        rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
         eval_in_progress = true;
         eval_steps = 0;
         eval_return = 0.0;
-        rlt::init(device, render_runner, &render_env, &render_env_parameters, render_rng);
     }
+
+    // Write lightweight training stat for plotting.
+    const double spsRollout = rolloutMs > 0 ? (static_cast<double>(prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL) / (rolloutMs / 1000.0)) : 0.0;
+    const double spsUpdate = updateMs > 0 ? (static_cast<double>(prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL) / (updateMs / 1000.0)) : 0.0;
+    writeStat(QStringLiteral("train"),
+              ppo_step,
+              rewardMean,
+              std::numeric_limits<double>::quiet_NaN(),
+              0,
+              rolloutMs,
+              updateMs,
+              spsRollout,
+              spsUpdate);
 }
 
 void AntTrainingEngine::stepMuJoCo(AntTrainingMetrics& metrics)
@@ -659,8 +718,10 @@ void AntTrainingEngine::stepMuJoCo(AntTrainingMetrics& metrics)
         return;
     }
     const TI currentStep = m_mujoco->ppo_step;
-    if (currentStep < 3 || (currentStep % 250) == 0) {
+    static TI lastLoggedStep = static_cast<TI>(-1);
+    if ((currentStep < 3 || (currentStep % 250) == 0) && currentStep != lastLoggedStep) {
         qDebug() << "[Ant] Dispatching MuJoCo step" << currentStep;
+        lastLoggedStep = currentStep;
     }
     m_mujoco->trainStep(metrics, m_pose);
 }
@@ -887,7 +948,7 @@ void SimpleTrainingEngine::updatePose()
 
 void SimpleTrainingEngine::step(SimpleTrainingMetrics& metrics)
 {
-    const int kMinStepMs = 40; // ~25 Hz
+    const int kMinStepMs = 15; // ~25 Hz
     if (!m_stepTimer.isValid()) {
         m_stepTimer.start();
     } else if (m_stepTimer.elapsed() < kMinStepMs) {

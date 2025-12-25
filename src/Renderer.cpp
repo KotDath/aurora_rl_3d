@@ -135,6 +135,8 @@ OpenGLRenderer::OpenGLRenderer()
     , m_cameraYaw(0.0f)
     , m_cameraPitch(0.0f)
     , m_activeProfile(SceneProfile::Demo)
+    , m_followAntCamera(false)
+    , m_followRadius(8.0f)
 {
     m_viewMatrix.setToIdentity();
     m_viewMatrix.translate(0.0f, 0.0f, -5.0f);
@@ -349,6 +351,7 @@ void OpenGLRenderer::synchronize(QQuickFramebufferObject* item)
     QPointF lookDelta = window->takeCameraLookDelta();
     m_cameraLookDelta = QVector2D(lookDelta.x(), lookDelta.y());
     m_cameraHeightDelta = window->takeCameraHeightDelta();
+    m_followAntCamera = window->antFollowCamera();
 }
 
 QOpenGLFramebufferObject* OpenGLRenderer::createFramebufferObject(const QSize& size)
@@ -606,42 +609,63 @@ void OpenGLRenderer::updateCameraFromInput(float deltaTime)
     const QVector3D worldUp(0.0f, 1.0f, 0.0f);
     const float lookSensitivity = 0.005f;
 
-    if (!qFuzzyIsNull(m_cameraLookDelta.x()) || !qFuzzyIsNull(m_cameraLookDelta.y())) {
-        m_cameraYaw += m_cameraLookDelta.x() * lookSensitivity;
-        m_cameraPitch = qBound<float>(-1.2f, m_cameraPitch + m_cameraLookDelta.y() * lookSensitivity, 1.2f);
-        m_cameraLookDelta = QVector2D(0.0f, 0.0f);
-    }
-
-    QVector3D forward(
-        qSin(m_cameraYaw) * qCos(m_cameraPitch),
-        qSin(m_cameraPitch),
-        -qCos(m_cameraYaw) * qCos(m_cameraPitch)
-    );
-    forward.normalize();
-    m_cameraTarget = m_cameraPosition + forward;
-
-    QVector3D planarForward = QVector3D(forward.x(), 0.0f, forward.z());
-    if (planarForward.lengthSquared() < 1e-6f) {
-        planarForward = QVector3D(0.0f, 0.0f, -1.0f);
+    if (m_followAntCamera && m_activeProfile == SceneProfile::AntTraining && m_antController) {
+        if (!qFuzzyIsNull(m_cameraLookDelta.x()) || !qFuzzyIsNull(m_cameraLookDelta.y())) {
+            m_cameraYaw += m_cameraLookDelta.x() * lookSensitivity;
+            m_cameraPitch = qBound<float>(-1.2f, m_cameraPitch + m_cameraLookDelta.y() * lookSensitivity, 1.2f);
+            m_cameraLookDelta = QVector2D(0.0f, 0.0f);
+        }
+        if (!qFuzzyIsNull(m_cameraHeightDelta)) {
+            m_followRadius = qMax(1.0f, m_followRadius + m_cameraHeightDelta);
+            m_cameraHeightDelta = 0.0f;
+        }
+        QVector3D center = m_antController->torsoPosition();
+        QVector3D offset(
+            qSin(m_cameraYaw) * qCos(m_cameraPitch),
+            qSin(m_cameraPitch),
+            -qCos(m_cameraYaw) * qCos(m_cameraPitch));
+        offset.normalize();
+        offset *= m_followRadius;
+        m_cameraPosition = center + offset;
+        m_cameraTarget = center;
     } else {
-        planarForward.normalize();
-    }
-    QVector3D right = QVector3D::crossProduct(planarForward, worldUp);
-    if (right.lengthSquared() < 1e-6f) {
-        right = QVector3D(1.0f, 0.0f, 0.0f);
-    } else {
-        right.normalize();
-    }
+        if (!qFuzzyIsNull(m_cameraLookDelta.x()) || !qFuzzyIsNull(m_cameraLookDelta.y())) {
+            m_cameraYaw += m_cameraLookDelta.x() * lookSensitivity;
+            m_cameraPitch = qBound<float>(-1.2f, m_cameraPitch + m_cameraLookDelta.y() * lookSensitivity, 1.2f);
+            m_cameraLookDelta = QVector2D(0.0f, 0.0f);
+        }
 
-    QVector3D movement = (right * m_cameraInput.x() + planarForward * m_cameraInput.y()) * moveSpeed * deltaTime;
-    m_cameraPosition += movement;
-    m_cameraTarget += movement;
+        QVector3D forward(
+            qSin(m_cameraYaw) * qCos(m_cameraPitch),
+            qSin(m_cameraPitch),
+            -qCos(m_cameraYaw) * qCos(m_cameraPitch)
+        );
+        forward.normalize();
+        m_cameraTarget = m_cameraPosition + forward;
 
-    if (!qFuzzyIsNull(m_cameraHeightDelta)) {
-        QVector3D upDelta = worldUp * m_cameraHeightDelta;
-        m_cameraPosition += upDelta;
-        m_cameraTarget += upDelta;
-        m_cameraHeightDelta = 0.0f;
+        QVector3D planarForward = QVector3D(forward.x(), 0.0f, forward.z());
+        if (planarForward.lengthSquared() < 1e-6f) {
+            planarForward = QVector3D(0.0f, 0.0f, -1.0f);
+        } else {
+            planarForward.normalize();
+        }
+        QVector3D right = QVector3D::crossProduct(planarForward, worldUp);
+        if (right.lengthSquared() < 1e-6f) {
+            right = QVector3D(1.0f, 0.0f, 0.0f);
+        } else {
+            right.normalize();
+        }
+
+        QVector3D movement = (right * m_cameraInput.x() + planarForward * m_cameraInput.y()) * moveSpeed * deltaTime;
+        m_cameraPosition += movement;
+        m_cameraTarget += movement;
+
+        if (!qFuzzyIsNull(m_cameraHeightDelta)) {
+            QVector3D upDelta = worldUp * m_cameraHeightDelta;
+            m_cameraPosition += upDelta;
+            m_cameraTarget += upDelta;
+            m_cameraHeightDelta = 0.0f;
+        }
     }
 
     m_viewMatrix.setToIdentity();

@@ -22,9 +22,12 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
 
-option(AURORA_RL3D_ENABLE_FAST_MATH "Enable fast math flags for RL training builds" OFF)
+option(AURORA_RL3D_ENABLE_FAST_MATH "Enable fast math flags for RL training builds" ON)
 option(AURORA_RL3D_ENABLE_NATIVE_ARCH "Enable -march=native (disable for cross/PSDK builds)" OFF)
 option(AURORA_RL3D_ENABLE_ARM_OPTIMIZATIONS "Enable ARM-specific optimizations for Aurora OS" ON)
+# Threads for BLAS/OMP (can be overridden via -DOPENBLAS_NUM_THREADS / -DOMP_NUM_THREADS)
+set(OPENBLAS_NUM_THREADS 4 CACHE STRING "Default OpenBLAS threads")
+set(OMP_NUM_THREADS 1 CACHE STRING "Default OMP threads")
 
 set(AURORA_RL3D_RELEASE_FLAGS "")
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -52,8 +55,8 @@ endif()
 
 # Configure OpenBLAS for Qt compatibility (avoid threading conflicts)
 # Parallelism target: 4 env threads, keep BLAS/OMP modest to avoid oversubscription on 4C/8T CPU.
-set(ENV{OPENBLAS_NUM_THREADS} "2")
-set(ENV{OMP_NUM_THREADS} "2")
+set(ENV{OPENBLAS_NUM_THREADS} "8")
+set(ENV{OMP_NUM_THREADS} "1")
 
 set(SHORT_NAME AuroraRL3D)
 
@@ -120,8 +123,8 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     RL_TOOLS_BACKEND_ENABLE_BLAS
     RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO
     # OpenBLAS threading configuration for Qt compatibility
-    OPENBLAS_NUM_THREADS=1
-    OMP_NUM_THREADS=1
+    OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS}
+    OMP_NUM_THREADS=${OMP_NUM_THREADS}
 )
 target_include_directories(${PROJECT_NAME} BEFORE PRIVATE
     $<BUILD_INTERFACE:

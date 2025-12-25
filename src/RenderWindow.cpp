@@ -194,6 +194,16 @@ void RenderWindow::applyAntMetrics(const AntTrainingMetrics& metrics)
     emit antMetricsChanged();
 }
 
+void RenderWindow::setAntFollowCamera(bool follow)
+{
+    if (m_antFollowCamera == follow) {
+        return;
+    }
+    m_antFollowCamera = follow;
+    emit antFollowCameraChanged();
+    update();
+}
+
 void RenderWindow::publishSimpleMetrics(const SimpleTrainingMetrics& metrics)
 {
     m_pendingSimpleMetrics = metrics;

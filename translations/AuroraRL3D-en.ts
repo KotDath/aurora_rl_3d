@@ -35,52 +35,57 @@
 <context>
     <name>AntLearningPage</name>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="35"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="44"/>
         <source>Learning Ant agent</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="46"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="64"/>
+        <source>Обучение: шаг %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="72"/>
         <source>Step: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="52"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="78"/>
         <source>Reward: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="59"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="85"/>
         <source>Avg: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="82"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="108"/>
         <source>Episode progress</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="87"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="113"/>
         <source>Height: %1 m</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="107"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="133"/>
         <source>Agent health</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="113"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="139"/>
         <source>Fallback kinematics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="114"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="140"/>
         <source>MuJoCo PPO streaming</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="131"/>
+        <location filename="../../aurora_rl_3d/qml/pages/AntLearningPage.qml" line="157"/>
         <source>Back</source>
         <translation type="unfinished"></translation>
     </message>
