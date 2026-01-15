@@ -11,7 +11,9 @@ BuildRequires:  pkgconfig(auroraapp)
 BuildRequires:  pkgconfig(Qt5Core)
 BuildRequires:  pkgconfig(Qt5Qml)
 BuildRequires:  pkgconfig(Qt5Quick)
-
+BuildRequires: cmake
+BuildRequires: ninja
+BuildRequires: conan
 %description
 Aurora OS Application Template.
 
@@ -19,12 +21,25 @@ Aurora OS Application Template.
 %autosetup
 
 %build
-%cmake \
-    -GNinja
+CONAN_LIB_DIR="%{_builddir}/conan-libs/"
+%{set_build_flags}
+conan-install-if-modified --source-folder="%{_sourcedir}/.." --output-folder="$CONAN_LIB_DIR" -vwarning
+PKG_CONFIG_PATH="$CONAN_LIB_DIR":$PKG_CONFIG_PATH
+export PKG_CONFIG_PATH
+%cmake -GNinja
 %ninja_build
 
 %install
 %ninja_install
+
+CONAN_LIB_DIR="%{_builddir}/conan-libs/"
+SHARED_LIBRARIES="%{buildroot}/%{_datadir}/%{name}/lib"
+mkdir -p "$SHARED_LIBRARIES"
+conan-deploy-libraries "%{buildroot}/%{_bindir}/%{name}" "$CONAN_LIB_DIR" "$SHARED_LIBRARIES"
+cp -rf %{_libdir}/libgomp* "$SHARED_LIBRARIES"
+
+%define __provides_exclude_from ^%{_datadir}/%{name}/lib/.*$
+%define __requires_exclude ^(libopenblas.*|libQt5Quick.*|libmujoco.*)$
 
 %files
 %defattr(-,root,root,-)

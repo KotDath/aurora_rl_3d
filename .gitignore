@@ -22,3 +22,4 @@ CMakeLists.txt.user*
 moc_*.cpp
 ru.kotdath.AuroraRL3D
 build
+.serena
